@@ -35,14 +35,15 @@ export class WebLLMClient implements LLMClientInterface {
   async chat(
     messages: ChatMessage[],
     tools?: any[],
-    onStream?: StreamCallback
+    onStream?: StreamCallback,
+    options?: { temperature?: number; maxTokens?: number }
   ): Promise<ChatMessage> {
     if (!this.engine) throw new Error('Engine not initialized');
     
     const request: webllm.ChatCompletionRequest = {
       messages: messages as any,
-      temperature: tools && tools.length > 0 ? 0 : 0.7, // Use 0 for function calling
-      max_tokens: 2048,
+      temperature: options?.temperature ?? (tools && tools.length > 0 ? 0 : 0.7), // Use 0 for function calling by default
+      max_tokens: options?.maxTokens ?? 2048,
       stream: !!onStream
     };
     

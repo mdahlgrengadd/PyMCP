@@ -96,7 +96,8 @@ export class WllamaClient implements LLMClientInterface {
   async chat(
     messages: ChatMessage[],
     tools?: any[],
-    onStream?: StreamCallback
+    onStream?: StreamCallback,
+    options?: { temperature?: number; maxTokens?: number }
   ): Promise<ChatMessage> {
     if (!this.wllama || !this.isInitialized) {
       throw new Error('wllama client not initialized');
@@ -108,24 +109,24 @@ export class WllamaClient implements LLMClientInterface {
 
       if (tools && tools.length > 0) {
         // Handle tool calling
-        return await this.chatWithTools(prompt, tools, onStream);
+        return await this.chatWithTools(prompt, tools, onStream, options);
       } else {
         // Regular completion
-        return await this.createCompletion(prompt, onStream);
+        return await this.createCompletion(prompt, onStream, options);
       }
     } catch (error: any) {
       throw new Error(`Chat failed: ${error.message}`);
     }
   }
 
-  private async createCompletion(prompt: string, onStream?: StreamCallback): Promise<ChatMessage> {
+  private async createCompletion(prompt: string, onStream?: StreamCallback, options?: { temperature?: number; maxTokens?: number }): Promise<ChatMessage> {
     if (!this.wllama) throw new Error('wllama not initialized');
 
     const response = await this.wllama.createCompletion(prompt, {
-      nPredict: 1024,
+      nPredict: options?.maxTokens ?? 1024,
       nCtx: 4096, // Increase context window
       sampling: {
-        temp: 0.7,
+        temp: options?.temperature ?? 0.7,
         top_k: 40,
         top_p: 0.9,
         penalty_repeat: 1.1
@@ -158,7 +159,8 @@ export class WllamaClient implements LLMClientInterface {
   private async chatWithTools(
     prompt: string,
     tools: any[],
-    onStream?: StreamCallback
+    onStream?: StreamCallback,
+    options?: { temperature?: number; maxTokens?: number }
   ): Promise<ChatMessage> {
     // Enhanced tool calling implementation for wllama
     // Format tools as a JSON schema for better understanding
@@ -179,7 +181,7 @@ Examples:
 
     const enhancedPrompt = `${systemMessage}\n\nUser: ${prompt}\nAssistant:`;
 
-    const response = await this.createCompletion(enhancedPrompt, onStream);
+    const response = await this.createCompletion(enhancedPrompt, onStream, options);
 
     // Parse JSON tool calls with better error handling
     const content = response.content.trim();

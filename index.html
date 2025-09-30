@@ -83,6 +83,13 @@
               <input type="checkbox" id="stream-response" />
               Stream responses
             </label>
+            <label style="display: block; margin-top: 12px;">
+              Temperature: <span id="temperature-value">0.7</span>
+              <input type="range" id="temperature-slider" min="0" max="2" step="0.1" value="0.7" style="width: 100%; margin-top: 4px;" />
+              <small style="display: block; color: var(--text-secondary); font-size: 0.75rem; margin-top: 2px;">
+                Lower = focused, Higher = creative
+              </small>
+            </label>
             <button id="clear-chat-btn" class="danger-btn">Clear Chat</button>
           </div>
         </aside>

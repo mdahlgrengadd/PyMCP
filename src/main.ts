@@ -1,7 +1,8 @@
 import './styles/chat.css';
 import { PyodideMcpClient } from './lib/mcp-pyodide-client';
 import type { LLMClientInterface, ChatMessage } from './lib/llm-client-interface';
-import { McpLLMBridge, ToolExecution } from './lib/mcp-llm-bridge';
+import { McpLLMBridge, ToolExecution, ChatWithToolsOptions } from './lib/mcp-llm-bridge';
+import type { ResourceDescriptor, PromptDescriptor } from './lib/mcp-resource-manager';
 import { LLMClientFactory } from './lib/llm-client-factory';
 import { detectCapabilities, formatCapabilitiesForUI, getCapabilityWarnings } from './lib/browser-capabilities';
 import { getCompatibleModels, getRecommendedModel, getModelById, formatModelDescription } from './lib/model-registry';
@@ -25,6 +26,11 @@ interface AppState {
   currentModelInfo: ModelInfo | null;
   browserCapabilities: BrowserCapabilities | null;
   compatibleModels: ModelInfo[];
+  temperature: number;
+  availableResources: ResourceDescriptor[];
+  selectedResources: Set<string>;
+  availablePrompts: PromptDescriptor[];
+  selectedPrompt: string | null;
 }
 
 const state: AppState = {
@@ -37,7 +43,12 @@ const state: AppState = {
   isGenerating: false,
   currentModelInfo: null,
   browserCapabilities: null,
-  compatibleModels: []
+  compatibleModels: [],
+  temperature: 0.7,
+  availableResources: [],
+  selectedResources: new Set(),
+  availablePrompts: [],
+  selectedPrompt: null
 };
 
 // ============================================================================
@@ -69,6 +80,8 @@ const stopBtn = document.getElementById('stop-btn') as HTMLButtonElement;
 const autoScrollCheckbox = document.getElementById('auto-scroll') as HTMLInputElement;
 const streamResponseCheckbox = document.getElementById('stream-response') as HTMLInputElement;
 const clearChatBtn = document.getElementById('clear-chat-btn') as HTMLButtonElement;
+const temperatureSlider = document.getElementById('temperature-slider') as HTMLInputElement;
+const temperatureValue = document.getElementById('temperature-value') as HTMLSpanElement;
 
 // wllama configuration elements
 const wllamaConfig = document.getElementById('wllama-config') as HTMLDivElement;
@@ -90,6 +103,7 @@ clearChatBtn.addEventListener('click', handleClearChat);
 modelSelect.addEventListener('change', handleModelSelectChange);
 wllamaMultithreadCheckbox?.addEventListener('change', updateWllamaConfig);
 wllamaThreadsSlider?.addEventListener('input', updateWllamaConfig);
+temperatureSlider?.addEventListener('input', updateTemperature);
 
 serverSelect.addEventListener('change', () => {
   const isCustomUrl = serverSelect.value === 'url';
@@ -233,6 +247,13 @@ function updateWllamaConfig() {
   }
 }
 
+function updateTemperature() {
+  if (temperatureValue && temperatureSlider) {
+    state.temperature = parseFloat(temperatureSlider.value);
+    temperatureValue.textContent = state.temperature.toFixed(1);
+  }
+}
+
 // ============================================================================
 // Model Loading
 // ============================================================================
@@ -372,9 +393,10 @@ async function handleBootMCP() {
 }
 
 async function handleRefreshTools() {
-  if (!state.mcpClient) return;
+  if (!state.mcpClient || !state.bridge) return;
   
   try {
+    // Refresh tools
     const tools = await state.mcpClient.listTools();
     toolsStatus.textContent = `${tools.length} tools`;
     toolsStatus.style.color = tools.length > 0 ? 'var(--success)' : 'var(--text-secondary)';
@@ -389,8 +411,26 @@ async function handleRefreshTools() {
         </div>
       `).join('');
     }
+
+    // Discover resources and prompts
+    const [resources, prompts] = await Promise.all([
+      state.bridge.resourceManager.discoverResources(),
+      state.bridge.resourceManager.discoverPrompts()
+    ]);
+
+    state.availableResources = resources;
+    state.availablePrompts = prompts;
+
+    console.log(`Discovered ${resources.length} resources and ${prompts.length} prompts`);
+    
+    if (resources.length > 0 || prompts.length > 0) {
+      addSystemMessage(
+        `📚 Discovered ${resources.length} resource(s) and ${prompts.length} prompt template(s). ` +
+        `These features are available for context augmentation.`
+      );
+    }
   } catch (error: any) {
-    console.error('Failed to refresh tools:', error);
+    console.error('Failed to refresh MCP features:', error);
   }
 }
 
@@ -445,7 +485,8 @@ async function handleSendMessage() {
             } else {
               updateMessage(currentMessageId, snapshot);
             }
-          } : undefined
+          } : undefined,
+          { temperature: state.temperature }
         );
         
         state.conversationHistory.push(response);
@@ -464,10 +505,16 @@ async function handleSendMessage() {
       
       let currentMessageId: string | null = null;
       
+      const chatOptions: ChatWithToolsOptions = {
+        systemPrompt,
+        temperature: state.temperature,
+        selectedResources: Array.from(state.selectedResources),
+        promptTemplate: state.selectedPrompt || undefined
+      };
+
       const result = await state.bridge.chatWithTools(
         message,
         state.conversationHistory,
-        systemPrompt,
         streamResponseCheckbox.checked ? (delta, snapshot) => {
           removeTypingIndicator(typingId);
           if (!currentMessageId) {
@@ -479,7 +526,8 @@ async function handleSendMessage() {
         (execution) => {
           removeTypingIndicator(typingId);
           addToolExecution(execution);
-        }
+        },
+        chatOptions
       );
       
       // Update conversation history
@@ -517,7 +565,8 @@ async function handleSendMessage() {
           } else {
             updateMessage(currentMessageId, snapshot);
           }
-        } : undefined
+        } : undefined,
+        { temperature: state.temperature }
       );
       
       state.conversationHistory.push(response);

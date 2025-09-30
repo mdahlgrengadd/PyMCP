@@ -25,6 +25,11 @@ export interface ProgressReport {
   speed?: string;
 }
 
+export interface ChatOptions {
+  temperature?: number;
+  maxTokens?: number;
+}
+
 export interface LLMClientInterface {
   /**
    * Initialize the LLM client with a specific model
@@ -37,7 +42,8 @@ export interface LLMClientInterface {
   chat(
     messages: ChatMessage[],
     tools?: any[],
-    onStream?: StreamCallback
+    onStream?: StreamCallback,
+    options?: ChatOptions
   ): Promise<ChatMessage>;
 
   /**
