@@ -93,9 +93,30 @@ export function buildToolCallingPrompt(tools: any[]): string {
 
     return `**${func.name}**: ${func.description}
 Parameters:
-${Object.entries(params).map(([name, schema]: [string, any]) =>
-  `  - ${name} (${schema.type})${required.includes(name) ? ' [required]' : ''}: ${schema.title || ''}`
-).join('\n')}`;
+${Object.entries(params).map(([name, schema]: [string, any]) => {
+  let paramDesc = `  - ${name} (${schema.type})${required.includes(name) ? ' [required]' : ''}`;
+  
+  // Add enum values if present
+  if (schema.enum && Array.isArray(schema.enum)) {
+    paramDesc += ` - MUST be one of: ${schema.enum.map((v: any) => JSON.stringify(v)).join(', ')}`;
+  }
+  // Handle Pydantic Literal types (uses anyOf with const)
+  else if (schema.anyOf && Array.isArray(schema.anyOf)) {
+    const enumValues = schema.anyOf
+      .filter((item: any) => item.const !== undefined)
+      .map((item: any) => item.const);
+    if (enumValues.length > 0) {
+      paramDesc += ` - MUST be one of: ${enumValues.map((v: any) => JSON.stringify(v)).join(', ')}`;
+    }
+  }
+  
+  // Add description/title if available
+  if (schema.title || schema.description) {
+    paramDesc += ` - ${schema.description || schema.title}`;
+  }
+  
+  return paramDesc;
+}).join('\n')}`;
   }).join('\n\n');
 
   return `You are a helpful AI assistant with access to the following tools:
@@ -116,10 +137,14 @@ CRITICAL FORMAT RULES:
 CORRECT examples:
 <function>{"name": "search_recipes", "parameters": {"query": "pasta"}}</function>
 <function>{"name": "substitute_ingredient", "parameters": {"ingredient": "butter", "reason": "vegan"}}</function>
+<function>{"name": "find_workouts", "parameters": {"goal": "fat loss", "level": "intermediate"}}</function>
 
 INCORRECT examples (DO NOT USE):
 <search_recipes>{"query": "pasta"}</function>  ❌ Wrong opening tag!
 <function>{"name": "search_recipes"}</search_recipes>  ❌ Wrong closing tag!
+<function>{"name": "find_workouts", "parameters": {"goal": "fat_loss"}}</function>  ❌ Wrong enum value! Must use "fat loss" not "fat_loss"
+
+CRITICAL: When a parameter has enum values (listed as "MUST be one of"), use the EXACT string including spaces, not underscores or abbreviations!
 
 If you don't need tools, respond normally without any <function> tags.`;
 }

@@ -176,9 +176,15 @@ const PROMPT_CARDS_BY_SERVER: Record<string, PromptCard[]> = {
       example: 'Show me how to make vegan pasta primavera'
     },
     {
+      icon: '🌏',
+      title: 'Cuisine Search',
+      description: 'Find recipes by cuisine type or ingredients',
+      example: 'Show me Thai recipes'
+    },
+    {
       icon: '🥗',
-      title: 'Dietary Adaptations',
-      description: 'Find recipes matching your dietary restrictions',
+      title: 'Dietary Restrictions',
+      description: 'Find vegan, vegetarian, or gluten-free recipes',
       example: 'What vegan recipes do you have?'
     },
     {
@@ -197,27 +203,27 @@ const PROMPT_CARDS_BY_SERVER: Record<string, PromptCard[]> = {
   'fitness': [
     {
       icon: '💪',
-      title: 'Workout Programs',
-      description: 'Get personalized workout plans for your goals',
-      example: 'Create a strength training program for beginners'
+      title: 'Strength Programs',
+      description: 'Find programs to build strength',
+      example: 'Find workout programs to build strength for beginners'
     },
     {
-      icon: '🎯',
-      title: 'Exercise Library',
-      description: 'Learn proper form and techniques',
-      example: 'Show me exercises for building chest muscles'
+      icon: '🔥',
+      title: 'Fat Loss Programs',
+      description: 'Find programs for fat loss and weight management',
+      example: 'Show me fat loss workout programs for intermediate level'
+    },
+    {
+      icon: '🧮',
+      title: 'Calorie Calculator',
+      description: 'Calculate your daily calorie needs',
+      example: 'Calculate my daily calories - I\'m 75kg, 175cm, 30 years old, male, moderately active'
     },
     {
       icon: '📊',
-      title: 'Progress Tracking',
-      description: 'Monitor your fitness journey',
-      example: 'How should I track my strength gains?'
-    },
-    {
-      icon: '🍎',
-      title: 'Nutrition Guidance',
-      description: 'Calculate macros and plan meals',
-      example: 'Calculate my daily protein needs for muscle building'
+      title: 'Track Workouts',
+      description: 'Log your exercises and track progress',
+      example: 'Log my workout: bench press, 3 sets of 8 reps at 80kg'
     }
   ],
   'coding': [

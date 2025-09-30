@@ -386,7 +386,11 @@ class ChefService(McpServer):
         dietary_restriction: Literal["vegan",
                                      "vegetarian", "gluten-free", "dairy-free"]
     ) -> list[str]:
-        """Find recipes matching dietary restrictions"""
+        """Find recipes matching SPECIFIC dietary restrictions (vegan, vegetarian, gluten-free, dairy-free ONLY).
+
+        Use this ONLY for dietary needs. For cuisine types (Thai, Italian, Mexican) or general 
+        recipe search, use search_recipes_semantic instead.
+        """
 
         matching = []
         for recipe_id, recipe in RECIPES.items():
@@ -396,9 +400,10 @@ class ChefService(McpServer):
         return matching
 
     def search_recipes_semantic(self, query: str, top_k: int = 3) -> list[dict]:
-        """
-        Semantically search recipes based on query using embeddings.
-        This simulates what would happen with conversation context.
+        """Search for recipes by ANY criteria: cuisine (Thai, Italian, Mexican), ingredients, 
+        dish names, or cooking style. Returns detailed recipe information with resource URIs.
+
+        Examples: "Thai food", "pasta dishes", "chicken recipes", "spicy Mexican", "easy desserts"
         """
 
         query_embedding = compute_embedding(query)

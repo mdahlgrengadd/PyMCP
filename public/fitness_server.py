@@ -294,7 +294,18 @@ class FitnessService(McpServer):
         goal: Literal["build strength", "fat loss", "flexibility", "endurance"],
         level: Literal["beginner", "intermediate", "advanced"] = "beginner"
     ) -> list[dict]:
-        """Find workout programs matching goals and fitness level"""
+        """Find workout programs matching goals and fitness level.
+
+        CRITICAL: goal must be EXACTLY (with spaces, not underscores):
+        - "build strength" (NOT "build_strength" or "strength")
+        - "fat loss" (NOT "fat_loss" or "weight_loss")
+        - "flexibility" (NOT "flex")
+        - "endurance" (NOT "cardio")
+
+        level must be EXACTLY: "beginner", "intermediate", or "advanced"
+
+        Example: find_workouts(goal="fat loss", level="intermediate")
+        """
 
         matching = []
         for program_id, program in WORKOUT_PROGRAMS.items():
