@@ -240,12 +240,32 @@ export class McpLLMBridge {
   }
   
   /**
+   * Clean old resource blocks from system message to prevent accumulation
+   */
+  private cleanSystemMessageResources(systemMessage: string): string {
+    // Remove resource section header
+    let cleaned = systemMessage.replace(
+      /^## Available Context Resources[\s\S]*?---\s*/m,
+      ''
+    );
+    
+    // Remove individual <resource>...</resource> blocks
+    cleaned = cleaned.replace(
+      /<resource[^>]*>[\s\S]*?<\/resource>\s*/g,
+      ''
+    );
+    
+    return cleaned.trim();
+  }
+  
+  /**
    * Enrich context based on tool results (GENERIC, server-agnostic)
    * 
    * This method:
    * 1. Checks if tool results reference resources (e.g., resource_uri fields)
    * 2. Uses semantic search to find relevant resources
    * 3. Loads and injects resources into system message
+   * 4. Cleans old resources to prevent accumulation
    */
   private async enrichContextFromTools(
     messages: ChatMessage[],
@@ -286,10 +306,22 @@ export class McpLLMBridge {
       if (resources.length > 0) {
         const resourceContext = this.resourceManager.buildResourceContext(resources);
         
-        // Inject into system message (prepend so it comes before existing content)
+        // Clean old resources and inject fresh ones
         if (messages[0]?.role === 'system') {
-          messages[0].content = resourceContext + '\n\n' + messages[0].content;
-          console.log(`✅ Injected ${resources.length} resource(s) into context`);
+          const cleanSystemPrompt = this.cleanSystemMessageResources(messages[0].content);
+          messages[0].content = resourceContext + '\n\n' + cleanSystemPrompt;
+          console.log(`✅ Injected ${resources.length} resource(s) into context (replaced old ones)`);
+        }
+      }
+    } else {
+      // No new resources, but clean old ones if they exist
+      if (messages[0]?.role === 'system') {
+        const currentContent = messages[0].content;
+        const cleanedContent = this.cleanSystemMessageResources(currentContent);
+        
+        if (currentContent !== cleanedContent) {
+          messages[0].content = cleanedContent;
+          console.log('🧹 Cleaned old resources from context (no new resources relevant)');
         }
       }
     }
