@@ -288,7 +288,8 @@ async function handleLoadModel() {
 
     // Create bridge if MCP is already loaded
     if (state.mcpClient) {
-      state.bridge = new McpLLMBridge(state.llmClient, state.mcpClient);
+      const supportsFunctionCalling = state.currentModelInfo?.supportsFunctionCalling === true;
+      state.bridge = new McpLLMBridge(state.llmClient, state.mcpClient, supportsFunctionCalling);
     }
 
     updateUIState();
@@ -340,12 +341,26 @@ async function handleBootMCP() {
     
     // Create bridge if LLM is already loaded
     if (state.llmClient) {
-      state.bridge = new McpLLMBridge(state.llmClient, state.mcpClient);
+      const supportsFunctionCalling = state.currentModelInfo?.supportsFunctionCalling === true;
+      state.bridge = new McpLLMBridge(state.llmClient, state.mcpClient, supportsFunctionCalling);
     }
     
     await handleRefreshTools();
     
-    addSystemMessage('MCP server booted successfully!');
+    // Warn about function calling support
+    if (state.llmClient && state.currentModelInfo) {
+      const modelSupportsTools = state.currentModelInfo.supportsFunctionCalling !== false;
+      if (!modelSupportsTools && state.currentModelInfo.type === 'webllm') {
+        addSystemMessage(
+          `MCP server booted successfully! ⚠️ Note: ${state.currentModelInfo.name} does not support function calling. ` +
+          `For full tool support, load a Hermes model with function calling capability.`
+        );
+      } else {
+        addSystemMessage('MCP server booted successfully! You can now chat with tool support.');
+      }
+    } else {
+      addSystemMessage('MCP server booted successfully!');
+    }
     updateUIState();
   } catch (error: any) {
     console.error('Failed to boot MCP:', error);
@@ -403,6 +418,47 @@ async function handleSendMessage() {
     const typingId = addTypingIndicator();
     
     if (state.bridge && state.isMCPLoaded) {
+      // Check if model supports function calling
+      const modelSupportsTools = state.currentModelInfo?.supportsFunctionCalling !== false;
+      
+      if (!modelSupportsTools && state.currentModelInfo?.type === 'webllm') {
+        removeTypingIndicator(typingId);
+        addSystemMessage(
+          `⚠️ Warning: ${state.currentModelInfo.name} does not support function calling. ` +
+          `To use MCP tools, please load a model with function calling support (e.g., Hermes models). ` +
+          `Continuing without tool support...`
+        );
+        // Fall back to chat without tools
+        state.conversationHistory.push({
+          role: 'user',
+          content: message
+        });
+        
+        let currentMessageId: string | null = null;
+        
+        const response = await state.llmClient!.chat(
+          state.conversationHistory,
+          undefined,
+          streamResponseCheckbox.checked ? (delta, snapshot) => {
+            if (!currentMessageId) {
+              currentMessageId = addAssistantMessage(snapshot, true);
+            } else {
+              updateMessage(currentMessageId, snapshot);
+            }
+          } : undefined
+        );
+        
+        state.conversationHistory.push(response);
+        
+        if (!streamResponseCheckbox.checked) {
+          addAssistantMessage(response.content);
+        } else if (currentMessageId) {
+          finalizeMessage(currentMessageId);
+        }
+        
+        return;
+      }
+      
       // Chat with tool support
       const systemPrompt = `You are a helpful AI assistant with access to tools. Use tools when appropriate to help answer the user's questions. Always explain what you're doing when you use tools.`;
       

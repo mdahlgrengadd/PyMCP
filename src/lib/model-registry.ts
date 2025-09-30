@@ -8,6 +8,7 @@ export interface ModelInfo {
   description: string;
   modelFile?: string; // For wllama GGUF models
   quantization?: string;
+  supportsFunctionCalling?: boolean; // For WebLLM models that support function calling
   requirements: Partial<BrowserCapabilities>;
   performance: {
     speed: 'very-fast' | 'fast' | 'medium' | 'slow';
@@ -18,14 +19,97 @@ export interface ModelInfo {
 }
 
 export const MODEL_REGISTRY: ModelInfo[] = [
-  // WebLLM models (existing)
+  // WebLLM models with function calling support (Hermes models)
+  {
+    id: 'Hermes-3-Llama-3.1-8B-q4f32_1-MLC',
+    name: 'Hermes 3 Llama 3.1 8B (WebLLM)',
+    type: 'webllm',
+    size: '4.7GB',
+    description: 'Hermes 3 with function calling support - best for tool use',
+    quantization: 'q4f32_1',
+    supportsFunctionCalling: true,
+    requirements: { webgpu: true },
+    performance: {
+      speed: 'fast',
+      quality: 'excellent',
+      memory: '5GB'
+    },
+    tags: ['chat', 'instruct', 'webgpu', 'function-calling', 'tools', 'recommended']
+  },
+  {
+    id: 'Hermes-3-Llama-3.1-8B-q4f16_1-MLC',
+    name: 'Hermes 3 Llama 3.1 8B (q4f16) (WebLLM)',
+    type: 'webllm',
+    size: '4.2GB',
+    description: 'Hermes 3 with function calling - more compact variant',
+    quantization: 'q4f16_1',
+    supportsFunctionCalling: true,
+    requirements: { webgpu: true },
+    performance: {
+      speed: 'fast',
+      quality: 'excellent',
+      memory: '4.5GB'
+    },
+    tags: ['chat', 'instruct', 'webgpu', 'function-calling', 'tools']
+  },
+  {
+    id: 'Hermes-2-Pro-Llama-3-8B-q4f32_1-MLC',
+    name: 'Hermes 2 Pro Llama 3 8B (WebLLM)',
+    type: 'webllm',
+    size: '4.7GB',
+    description: 'Hermes 2 Pro with function calling support',
+    quantization: 'q4f32_1',
+    supportsFunctionCalling: true,
+    requirements: { webgpu: true },
+    performance: {
+      speed: 'fast',
+      quality: 'excellent',
+      memory: '5GB'
+    },
+    tags: ['chat', 'instruct', 'webgpu', 'function-calling', 'tools']
+  },
+  {
+    id: 'Hermes-2-Pro-Llama-3-8B-q4f16_1-MLC',
+    name: 'Hermes 2 Pro Llama 3 8B (q4f16) (WebLLM)',
+    type: 'webllm',
+    size: '4.2GB',
+    description: 'Hermes 2 Pro with function calling - compact variant',
+    quantization: 'q4f16_1',
+    supportsFunctionCalling: true,
+    requirements: { webgpu: true },
+    performance: {
+      speed: 'fast',
+      quality: 'excellent',
+      memory: '4.5GB'
+    },
+    tags: ['chat', 'instruct', 'webgpu', 'function-calling', 'tools']
+  },
+  {
+    id: 'Hermes-2-Pro-Mistral-7B-q4f16_1-MLC',
+    name: 'Hermes 2 Pro Mistral 7B (WebLLM)',
+    type: 'webllm',
+    size: '4.0GB',
+    description: 'Hermes 2 Pro Mistral with function calling support',
+    quantization: 'q4f16_1',
+    supportsFunctionCalling: true,
+    requirements: { webgpu: true },
+    performance: {
+      speed: 'fast',
+      quality: 'excellent',
+      memory: '4.5GB'
+    },
+    tags: ['chat', 'instruct', 'webgpu', 'function-calling', 'tools']
+  },
+
+  // WebLLM models (existing - no function calling)
   {
     id: 'Llama-3.2-3B-Instruct-q4f32_1-MLC',
     name: 'Llama 3.2 3B (WebLLM)',
     type: 'webllm',
     size: '2.0GB',
-    description: 'Fast lightweight model optimized for WebGPU',
+    description: 'Fast lightweight model optimized for WebGPU (no function calling)',
     quantization: 'q4f32_1',
+    supportsFunctionCalling: false,
     requirements: { webgpu: true },
     performance: {
       speed: 'very-fast',
@@ -39,8 +123,9 @@ export const MODEL_REGISTRY: ModelInfo[] = [
     name: 'Llama 3.1 8B (WebLLM)',
     type: 'webllm',
     size: '4.7GB',
-    description: 'Balanced model with better reasoning capabilities',
+    description: 'Balanced model with better reasoning (no function calling)',
     quantization: 'q4f32_1',
+    supportsFunctionCalling: false,
     requirements: { webgpu: true },
     performance: {
       speed: 'fast',
@@ -54,8 +139,9 @@ export const MODEL_REGISTRY: ModelInfo[] = [
     name: 'Phi 3.5 Mini (WebLLM)',
     type: 'webllm',
     size: '2.2GB',
-    description: 'Microsoft\'s efficient model for coding and reasoning',
+    description: 'Microsoft\'s efficient model for coding (no function calling)',
     quantization: 'q4f16_1',
+    supportsFunctionCalling: false,
     requirements: { webgpu: true },
     performance: {
       speed: 'fast',
@@ -69,8 +155,9 @@ export const MODEL_REGISTRY: ModelInfo[] = [
     name: 'Qwen 2.5 7B (WebLLM)',
     type: 'webllm',
     size: '4.2GB',
-    description: 'Alibaba\'s multilingual model with strong performance',
+    description: 'Alibaba\'s multilingual model (no function calling)',
     quantization: 'q4f32_1',
+    supportsFunctionCalling: false,
     requirements: { webgpu: true },
     performance: {
       speed: 'fast',
@@ -183,7 +270,13 @@ export function getRecommendedModel(capabilities: BrowserCapabilities): ModelInf
   // Prefer WebGPU models when available
   const webgpuModels = compatible.filter(m => m.type === 'webllm');
   if (webgpuModels.length > 0) {
-    // Return fastest WebGPU model
+    // Prefer models with function calling support (for MCP tools)
+    const functionCallingModels = webgpuModels.filter(m => m.supportsFunctionCalling === true);
+    if (functionCallingModels.length > 0) {
+      // Return recommended function calling model
+      return functionCallingModels.find(m => m.tags.includes('recommended')) || functionCallingModels[0];
+    }
+    // Fall back to fastest WebGPU model without function calling
     return webgpuModels.find(m => m.performance.speed === 'very-fast') || webgpuModels[0];
   }
 

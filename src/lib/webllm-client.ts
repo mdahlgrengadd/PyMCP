@@ -41,12 +41,13 @@ export class WebLLMClient implements LLMClientInterface {
     
     const request: webllm.ChatCompletionRequest = {
       messages: messages as any,
-      temperature: 0.7,
+      temperature: tools && tools.length > 0 ? 0 : 0.7, // Use 0 for function calling
       max_tokens: 2048,
       stream: !!onStream
     };
     
     if (tools && tools.length > 0) {
+      console.log('Sending tools to WebLLM:', JSON.stringify(tools, null, 2));
       request.tools = tools;
       request.tool_choice = 'auto';
     }
@@ -54,21 +55,36 @@ export class WebLLMClient implements LLMClientInterface {
     if (onStream) {
       const chunks = await this.engine.chat.completions.create(request) as AsyncIterable<any>;
       let fullContent = '';
-      
+      let lastChunk: any = null;
+
       for await (const chunk of chunks) {
         const delta = chunk.choices[0]?.delta?.content || '';
         fullContent += delta;
         onStream(delta, fullContent);
+        lastChunk = chunk;
       }
-      
+
+      // The last chunk contains tool_calls
+      const toolCalls = lastChunk?.choices[0]?.delta?.tool_calls ||
+                        lastChunk?.choices[0]?.message?.tool_calls;
+
+      console.log('Last chunk (streaming):', JSON.stringify(lastChunk, null, 2));
+      console.log('Tool calls from stream:', JSON.stringify(toolCalls, null, 2));
+
       return {
         role: 'assistant',
-        content: fullContent
+        content: fullContent,
+        tool_calls: toolCalls as any
       };
     } else {
       const response = await this.engine.chat.completions.create(request) as any;
       const choice = response.choices[0];
-      
+
+      // Debug logging
+      console.log('WebLLM Response:', JSON.stringify(response, null, 2));
+      console.log('Choice:', JSON.stringify(choice, null, 2));
+      console.log('Tool calls:', JSON.stringify(choice.message.tool_calls, null, 2));
+
       return {
         role: 'assistant',
         content: choice.message.content || '',
