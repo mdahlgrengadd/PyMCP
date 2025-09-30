@@ -16,6 +16,14 @@ const getBtn  = document.getElementById('get')  as HTMLButtonElement;
 let client: PyodideMcpClient | null = null;
 let tools: McpTools | null = null;
 
+// Make client and tools available globally for console access
+declare global {
+  interface Window {
+    client: PyodideMcpClient | null;
+    tools: McpTools | null;
+  }
+}
+
 function log(...args: any[]) {
   logEl.textContent += args.map(a => typeof a === 'string' ? a : JSON.stringify(a, null, 2)).join(' ') + '\n';
   logEl.scrollTop = logEl.scrollHeight;
@@ -69,6 +77,11 @@ bootBtn.onclick = async () => {
     
     client = await new PyodideMcpClient(worker).init(idxEl.value, serverConfig);
     tools  = await client.createProxy() as unknown as McpTools;
+    
+    // Make available globally for console access
+    window.client = client;
+    window.tools = tools;
+    
     log('✅ Pyodide ready and tools proxy created.');
   } catch (e:any) {
     log('Boot error:', e?.message || e);
