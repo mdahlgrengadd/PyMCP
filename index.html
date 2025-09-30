@@ -1,0 +1,33 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>MCP Pyodide Template</title>
+    <style>
+      body { font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, Apple Color Emoji, Segoe UI Emoji; padding: 2rem; }
+      button { padding: .6rem 1rem; margin-right: .5rem; }
+      pre { background: #111; color: #0f0; padding: 1rem; max-height: 40vh; overflow: auto; }
+      .log { white-space: pre-wrap; }
+    </style>
+  </head>
+  <body>
+    <h1>MCP over Pyodide (Python) ⇄ TypeScript</h1>
+    <p>This demo loads a Python class in a Web Worker with Pyodide and exposes its methods as JSON‑RPC tools.</p>
+    <div>
+      <label>Pyodide indexURL (CDN):</label>
+      <input id="idx" style="width: 36rem" value="https://cdn.jsdelivr.net/pyodide/v0.26.4/full/" />
+      <button id="boot">Boot Pyodide</button>
+    </div>
+    <div style="margin-top: 1rem;">
+      <button id="list">tools/list</button>
+      <button id="echo">echo('hello', upper=True)</button>
+      <button id="add">add(1.5, 2.25)</button>
+      <button id="get">get_item(7)</button>
+    </div>
+    <h3>Output</h3>
+    <pre class="log" id="log"></pre>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
