@@ -1,63 +1,174 @@
 # MCP over Pyodide – Template
 
-Write plain **Python** classes with type hints & docstrings; run them in **Pyodide**; call them from **TypeScript** as if they were local methods. JSON‑RPC 2.0 under the hood, with runtime validation via Pydantic (→ JSON Schema → Ajv).
+Write plain **Python** classes with type hints & docstrings; run them in **Pyodide**; call them from **TypeScript** as if they were local methods. Supports **tools**, **resources**, and **prompt templates** with dynamic server loading.
 
 ## Quickstart
 
 ```bash
 pnpm i
 pnpm dev
-# open http://localhost:5173
+# open http://localhost:5174
 ```
-In the UI, click **Boot Pyodide**. Then try the sample tools.
+In the UI, select your server source (embedded or URL), click **Boot Pyodide**, then explore tools, resources, and prompts.
 
-> The worker loads Pyodide from the CDN URL you enter (defaults to `https://cdn.jsdelivr.net/pyodide/v0.26.4/full/`).
+## Features
 
-## Where things live
+✅ **Tools**: Python methods become JSON-RPC callable tools  
+✅ **Resources**: Expose files, documents, or data via `resource_*` methods  
+✅ **Prompts**: Template systems via `prompt_*` methods  
+✅ **Dynamic Loading**: Load servers from URLs at runtime  
+✅ **Type Safety**: Auto-generated TypeScript types  
+✅ **Validation**: Runtime validation via Pydantic + Ajv  
+
+## Architecture
 
 ```
 src/
-  lib/mcp-pyodide-client.ts   # TS JSON-RPC client + “native-feeling” tool proxy (with Ajv validation)
-  workers/py.worker.ts        # Worker: loads Pyodide, writes Python files, boots the server
+  lib/mcp-pyodide-client.ts   # TS JSON-RPC client with validation
+  workers/py.worker.ts        # Dynamic Pyodide loader (embedded or URL)
   py/
-    mcp_core.py               # MCP server core: metaclass reflection, schemas, Pyodide bridge
-    my_server.py              # Example: plain Python class → tools
+    mcp_core.py               # MCP framework with metaclass magic
+    my_server.py              # Example server with tools/resources/prompts
 ```
 
-## Add your own tools
+## Adding Tools
 
-Edit `src/py/my_server.py` and add a public method with type hints:
+Add a public method to your server class:
 
-```py
+```python
 class MyService(McpServer):
     def multiply(self, a: float, b: float) -> float:
         '''Multiply two numbers.'''
         return a * b
 ```
 
-Reload the page, click **tools/list**, and you’ll see `multiply`. Call it with:
+The method becomes available as a tool automatically.
 
-```ts
-const tools = await mcp.createProxy();
-const out = await tools["multiply"]({ a: 6, b: 7 });
+## Adding Resources
+
+Add a method prefixed with `resource_`:
+
+```python
+def resource_help(self) -> str:
+    '''Help documentation for this server.'''
+    return "# Help\n\nThis server provides..."
+
+def resource_data(self) -> dict:
+    '''JSON data resource.'''
+    return {
+        "mimeType": "application/json", 
+        "text": '{"key": "value"}',
+        "description": "Sample JSON data"
+    }
 ```
 
-## Optional: Generate TypeScript types
+Resources are accessible via `res://help`, `res://data`, etc.
 
-If you have CPython locally:
+## Adding Prompts
+
+Add a method prefixed with `prompt_`:
+
+```python
+def prompt_greeting(self) -> str:
+    '''Greet a user by name.'''
+    return "Hello {{ name }}! Welcome to our service."
+
+def prompt_advanced(self) -> dict:
+    '''Advanced prompt with schema.'''
+    return {
+        "template": "Process {{ data }} with {{ method }}",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "data": {"type": "string"},
+                "method": {"type": "string", "enum": ["fast", "thorough"]}
+            }
+        }
+    }
+```
+
+## Dynamic Server Loading
+
+The system supports loading servers from URLs:
+
+1. **Embedded**: Uses the built-in `my_server.py`
+2. **Example Remote Server**: Loads the included example from `/public/example_remote_server.py`
+3. **Custom URL**: Fetches Python code from any URL
+
+### URL Server Requirements
+
+Your remote server must:
+- Import or define `McpServer` and `attach_pyodide_worker`
+- Have a `boot()` function OR a class inheriting from `McpServer`
+- Follow the same naming conventions (`resource_*`, `prompt_*`)
+
+Example remote server:
+
+```python
+from mcp_core import McpServer, attach_pyodide_worker
+
+class RemoteServer(McpServer):
+    def hello(self, name: str) -> str:
+        '''Say hello to someone.'''
+        return f"Hello {name} from the remote server!"
+    
+    def resource_info(self) -> str:
+        '''Server information.'''
+        return "This server was loaded from a URL!"
+
+def boot():
+    server = RemoteServer()
+    attach_pyodide_worker(server)
+```
+
+### Usage Examples
+
+Try the included example server by selecting "Example Remote Server" from the dropdown, or enter a custom URL:
+
+```
+Custom Server URL: https://example.com/my_server.py
+```
+
+## Type Generation
+
+Generate TypeScript types for full IDE support:
 
 ```bash
+# Setup (one time)
+python3 -m venv .venv
+source .venv/bin/activate  # or `.venv\Scripts\activate` on Windows
+pip install pydantic
+
+# Generate types
 pnpm typegen
 ```
 
-This runs `scripts/gen-types.mjs` which executes `tools_dump.py` to dump tool schemas and emits `src/types/mcp-tools.gen.d.ts`. You can then cast the proxy:
+This creates `src/types/mcp-tools.gen.d.ts` with exact type definitions:
 
-```ts
+```typescript
 import type { McpTools } from './types/mcp-tools.gen';
-const typed = await mcp.createProxy() as unknown as McpTools;
+
+const tools = await client.createProxy() as unknown as McpTools;
+const result = await tools.multiply({ a: 6, b: 7 }); // Fully typed!
 ```
 
-## Notes
+## MCP Protocol Support
 
-- Runtime validation uses **Ajv** against JSON Schemas derived from your Pydantic models.
-- The same Python class can be served over stdio/WebSocket; only the transport changes.
+| Feature | Status | Notes |
+|---------|--------|-------|
+| Tools | ✅ | `tools/list`, `tools/call` |
+| Resources | ✅ | `resources/list`, `resources/read` |
+| Prompts | ✅ | `prompts/list`, `prompts/get` |
+| Sampling | ❌ | Not implemented |
+| Logging | ❌ | Console only |
+
+## Deployment
+
+The same Python server classes work in multiple environments:
+
+- **Browser**: Via Pyodide (this template)
+- **Node.js**: Via stdio transport
+- **Server**: Via WebSocket transport
+- **Desktop**: Via process communication
+
+Only the transport layer changes – your Python code remains identical.

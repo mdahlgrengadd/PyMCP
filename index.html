@@ -6,25 +6,55 @@
     <title>MCP Pyodide Template</title>
     <style>
       body { font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, Apple Color Emoji, Segoe UI Emoji; padding: 2rem; }
-      button { padding: .6rem 1rem; margin-right: .5rem; }
+      button { padding: .6rem 1rem; margin-right: .5rem; margin-bottom: .5rem; }
+      select, input { padding: .5rem; margin-right: .5rem; }
       pre { background: #111; color: #0f0; padding: 1rem; max-height: 40vh; overflow: auto; }
       .log { white-space: pre-wrap; }
+      .config-section { margin-bottom: 1rem; padding: 1rem; border: 1px solid #ddd; border-radius: 4px; }
+      .config-section h3 { margin-top: 0; }
+      .button-group { margin-top: 1rem; }
     </style>
   </head>
   <body>
     <h1>MCP over Pyodide (Python) ⇄ TypeScript</h1>
-    <p>This demo loads a Python class in a Web Worker with Pyodide and exposes its methods as JSON‑RPC tools.</p>
-    <div>
-      <label>Pyodide indexURL (CDN):</label>
-      <input id="idx" style="width: 36rem" value="https://cdn.jsdelivr.net/pyodide/v0.26.4/full/" />
-      <button id="boot">Boot Pyodide</button>
+    <p>This demo loads a Python class in a Web Worker with Pyodide and exposes its methods as JSON‑RPC tools, resources, and prompts.</p>
+    
+    <div class="config-section">
+      <h3>Configuration</h3>
+      <div>
+        <label>Pyodide indexURL (CDN):</label><br>
+        <input id="idx" style="width: 50rem" value="https://cdn.jsdelivr.net/pyodide/v0.26.4/full/" />
+      </div>
+      <div style="margin-top: 1rem;">
+        <label>Server Source:</label><br>
+        <select id="serverSelect">
+          <option value="embedded">Embedded (default)</option>
+          <option value="example">Example Remote Server</option>
+          <option value="url">Custom URL</option>
+        </select>
+        <input id="serverUrl" placeholder="https://example.com/my_server.py" style="width: 30rem; display: none;" />
+      </div>
+      <div style="margin-top: 1rem;">
+        <button id="boot">Boot Pyodide</button>
+      </div>
     </div>
-    <div style="margin-top: 1rem;">
-      <button id="list">tools/list</button>
-      <button id="echo">echo('hello', upper=True)</button>
-      <button id="add">add(1.5, 2.25)</button>
-      <button id="get">get_item(7)</button>
+
+    <div class="config-section">
+      <h3>MCP Operations</h3>
+      <div class="button-group">
+        <strong>Discovery:</strong><br>
+        <button id="list">List Tools</button>
+        <button id="listResources">List Resources</button>
+        <button id="listPrompts">List Prompts</button>
+      </div>
+      <div class="button-group">
+        <strong>Sample Tools:</strong><br>
+        <button id="echo">echo('hello', upper=True)</button>
+        <button id="add">add(1.5, 2.25)</button>
+        <button id="get">get_item(7)</button>
+      </div>
     </div>
+
     <h3>Output</h3>
     <pre class="log" id="log"></pre>
 

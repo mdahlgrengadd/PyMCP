@@ -5,6 +5,13 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
+# Python virtual environment
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
 # Build outputs
 dist/
 build/

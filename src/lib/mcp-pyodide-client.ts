@@ -33,7 +33,7 @@ export class PyodideMcpClient {
     };
   }
 
-  async init(indexURL: string) {
+  async init(indexURL: string, serverConfig?: { serverUrl?: string; serverType?: 'embedded' | 'url' }) {
     const ready = new Promise<void>((resolve) => {
       const handler = (e: MessageEvent) => {
         if (e.data?.type === 'mcp.ready') {
@@ -43,7 +43,15 @@ export class PyodideMcpClient {
       };
       this.worker.addEventListener('message', handler as any);
     });
-    this.worker.postMessage({ type: 'init', indexURL });
+    
+    const initMessage = { 
+      type: 'init', 
+      indexURL,
+      serverType: serverConfig?.serverType || 'embedded',
+      serverUrl: serverConfig?.serverUrl
+    };
+    
+    this.worker.postMessage(initMessage);
     await ready;
     this.tools = await this.call('tools/list');
     return this;
