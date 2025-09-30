@@ -1,5 +1,6 @@
 import { PyodideMcpClient } from './mcp-pyodide-client';
 import { McpResourceManager } from './mcp-resource-manager';
+import { ResourceDiscoveryService } from './resource-discovery';
 import type { LLMClientInterface, ChatMessage, ToolCall } from './llm-client-interface';
 import type { ResourceContent } from './mcp-resource-manager';
 import { extractFunctionCall, buildToolCallingPrompt, cleanAssistantMessage } from './function-call-parser';
@@ -28,6 +29,7 @@ export interface ChatWithToolsOptions {
 
 export class McpLLMBridge {
   public resourceManager: McpResourceManager;
+  public resourceDiscovery: ResourceDiscoveryService;
 
   constructor(
     private llmClient: LLMClientInterface,
@@ -35,6 +37,7 @@ export class McpLLMBridge {
     private supportsFunctionCalling: boolean = false
   ) {
     this.resourceManager = new McpResourceManager(mcpClient);
+    this.resourceDiscovery = new ResourceDiscoveryService(this.resourceManager);
   }
   
   /**
@@ -122,6 +125,7 @@ export class McpLLMBridge {
 
     const tools = await this.getMcpToolsForLLM();
     const toolExecutions: ToolExecution[] = [];
+    const accumulatedToolResults: any[] = []; // Track all tool results
 
     // Build augmented system prompt with resources and templates
     const baseSystemPrompt = options?.systemPrompt || 'You are a helpful AI assistant.';
@@ -194,6 +198,9 @@ export class McpLLMBridge {
 
       try {
         execution.result = await this.executeToolCall(toolCall);
+        
+        // ⭐ Accumulate tool results for context discovery
+        accumulatedToolResults.push(execution.result);
 
         // Add tool result using 'tool' role (proper Hermes format)
         messages.push({
@@ -217,12 +224,74 @@ export class McpLLMBridge {
       toolExecutions.push(execution);
       onToolExecution?.(execution);
       
-      // Continue loop to let model process tool results
+      // ⭐ GENERIC RESOURCE DISCOVERY (Server-agnostic!)
+      // After tool execution, discover relevant resources
+      if (accumulatedToolResults.length > 0) {
+        await this.enrichContextFromTools(messages, accumulatedToolResults);
+      }
+      
+      // Continue loop to let model process tool results (with enriched context)
     }
     
     return {
       messages,
       toolExecutions
     };
+  }
+  
+  /**
+   * Enrich context based on tool results (GENERIC, server-agnostic)
+   * 
+   * This method:
+   * 1. Checks if tool results reference resources (e.g., resource_uri fields)
+   * 2. Uses semantic search to find relevant resources
+   * 3. Loads and injects resources into system message
+   */
+  private async enrichContextFromTools(
+    messages: ChatMessage[],
+    toolResults: any[]
+  ): Promise<void> {
+    const resourcesToLoad: string[] = [];
+    
+    // Strategy 1: Extract explicit resource references
+    // (e.g., search results that return resource_uri)
+    const explicitRefs = this.resourceDiscovery.extractReferencedResources(toolResults);
+    if (explicitRefs.length > 0) {
+      console.log('📌 Found explicit resource references:', explicitRefs);
+      resourcesToLoad.push(...explicitRefs);
+    }
+    
+    // Strategy 2: Semantic discovery
+    // Find resources semantically similar to conversation + tool results
+    const discoveredRefs = await this.resourceDiscovery.discoverRelevantResources(
+      messages,
+      toolResults,
+      { topK: 2, minScore: 0.15 }
+    );
+    
+    if (discoveredRefs.length > 0) {
+      console.log('🔍 Discovered relevant resources:', discoveredRefs);
+      // Only add if not already in explicit refs
+      for (const uri of discoveredRefs) {
+        if (!resourcesToLoad.includes(uri)) {
+          resourcesToLoad.push(uri);
+        }
+      }
+    }
+    
+    // Load and inject resources
+    if (resourcesToLoad.length > 0) {
+      const resources = await this.resourceManager.loadResources(resourcesToLoad);
+      
+      if (resources.length > 0) {
+        const resourceContext = this.resourceManager.buildResourceContext(resources);
+        
+        // Inject into system message (prepend so it comes before existing content)
+        if (messages[0]?.role === 'system') {
+          messages[0].content = resourceContext + '\n\n' + messages[0].content;
+          console.log(`✅ Injected ${resources.length} resource(s) into context`);
+        }
+      }
+    }
   }
 } 

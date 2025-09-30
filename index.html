@@ -53,11 +53,15 @@
           <div class="sidebar-section">
             <h3>🔧 MCP Server</h3>
             <select id="server-select">
-              <option value="embedded">Embedded</option>
+              <option value="embedded">📝 Demo Server (Basic Tools)</option>
+              <option value="chef">👨‍🍳 Chef Server (Cooking)</option>
+              <option value="fitness">🏋️ Fitness Trainer</option>
+              <option value="coding">💻 Coding Mentor</option>
               <option value="example">Example Server</option>
               <option value="clean">Clean API</option>
               <option value="url">Custom URL</option>
             </select>
+            <div id="server-description" style="margin: 8px 0; padding: 8px; background: var(--bg-tertiary); border-radius: 4px; font-size: 0.75rem; display: none;"></div>
             <input id="server-url" type="text" placeholder="https://..." style="display: none;" />
             <input id="pyodide-url" type="text" 
                    value="https://cdn.jsdelivr.net/pyodide/v0.26.4/full/" 

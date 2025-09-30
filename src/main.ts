@@ -3,6 +3,7 @@ import { PyodideMcpClient } from './lib/mcp-pyodide-client';
 import type { LLMClientInterface, ChatMessage } from './lib/llm-client-interface';
 import { McpLLMBridge, ToolExecution, ChatWithToolsOptions } from './lib/mcp-llm-bridge';
 import type { ResourceDescriptor, PromptDescriptor } from './lib/mcp-resource-manager';
+import { McpResourceManager } from './lib/mcp-resource-manager';
 import { LLMClientFactory } from './lib/llm-client-factory';
 import { detectCapabilities, formatCapabilitiesForUI, getCapabilityWarnings } from './lib/browser-capabilities';
 import { getCompatibleModels, getRecommendedModel, getModelById, formatModelDescription } from './lib/model-registry';
@@ -65,6 +66,7 @@ const capabilitiesStatus = document.getElementById('capabilities-status') as HTM
 const modelDescription = document.getElementById('model-description') as HTMLDivElement;
 
 const serverSelect = document.getElementById('server-select') as HTMLSelectElement;
+const serverDescription = document.getElementById('server-description') as HTMLDivElement;
 const serverUrlInput = document.getElementById('server-url') as HTMLInputElement;
 const pyodideUrlInput = document.getElementById('pyodide-url') as HTMLInputElement;
 const bootMcpBtn = document.getElementById('boot-mcp-btn') as HTMLButtonElement;
@@ -105,18 +107,48 @@ wllamaMultithreadCheckbox?.addEventListener('change', updateWllamaConfig);
 wllamaThreadsSlider?.addEventListener('input', updateWllamaConfig);
 temperatureSlider?.addEventListener('input', updateTemperature);
 
+// Server descriptions
+const SERVER_DESCRIPTIONS: Record<string, string> = {
+  embedded: "📝 Basic demo with simple tools (echo, add, get_item)",
+  chef: "👨‍🍳 Cooking assistant with recipes, conversions, and meal planning. Uses semantic search to find relevant recipes.",
+  fitness: "🏋️ Personal trainer with workout programs, BMI calculator, and nutrition guidance.",
+  coding: "💻 Programming mentor with code review, tutorials, and design patterns.",
+  example: "Example remote server",
+  clean: "Clean API server",
+  url: "Load custom server from URL"
+};
+
 serverSelect.addEventListener('change', () => {
-  const isCustomUrl = serverSelect.value === 'url';
+  const value = serverSelect.value;
+  const isCustomUrl = value === 'url';
   serverUrlInput.style.display = isCustomUrl ? 'block' : 'none';
   
-  if (serverSelect.value === 'example') {
+  // Show description
+  if (SERVER_DESCRIPTIONS[value]) {
+    serverDescription.style.display = 'block';
+    serverDescription.textContent = SERVER_DESCRIPTIONS[value];
+  } else {
+    serverDescription.style.display = 'none';
+  }
+  
+  // Set URL for file-based servers
+  if (value === 'example') {
     serverUrlInput.value = '/example_remote_server.py';
-  } else if (serverSelect.value === 'clean') {
+  } else if (value === 'clean') {
     serverUrlInput.value = '/clean_server.py';
+  } else if (value === 'chef') {
+    serverUrlInput.value = '/chef_server.py';
+  } else if (value === 'fitness') {
+    serverUrlInput.value = '/fitness_server.py';
+  } else if (value === 'coding') {
+    serverUrlInput.value = '/coding_mentor_server.py';
   } else if (!isCustomUrl) {
     serverUrlInput.value = '';
   }
 });
+
+// Trigger initial description
+serverSelect.dispatchEvent(new Event('change'));
 
 chatInput.addEventListener('input', () => {
   // Auto-resize textarea
@@ -311,6 +343,12 @@ async function handleLoadModel() {
     if (state.mcpClient) {
       const supportsFunctionCalling = state.currentModelInfo?.supportsFunctionCalling === true;
       state.bridge = new McpLLMBridge(state.llmClient, state.mcpClient, supportsFunctionCalling);
+      
+      // Index resources if they were already discovered
+      if (state.availableResources.length > 0) {
+        await state.bridge.resourceDiscovery.indexResources();
+        console.log('📇 Indexed resources for semantic search after model load');
+      }
     }
 
     updateUIState();
@@ -343,14 +381,15 @@ async function handleBootMCP() {
       { type: 'module' }
     );
     
+    const selectedServer = serverSelect.value;
     const serverType: 'embedded' | 'url' = 
-      serverSelect.value === 'embedded' ? 'embedded' : 'url';
+      selectedServer === 'embedded' ? 'embedded' : 'url';
     
     const serverConfig = serverType === 'url' ? {
       serverType,
-      serverUrl: serverSelect.value === 'url' 
+      serverUrl: selectedServer === 'url' 
         ? serverUrlInput.value.trim()
-        : serverUrlInput.value
+        : serverUrlInput.value || `/example_remote_server.py`
     } : { serverType };
     
     state.mcpClient = await new PyodideMcpClient(worker).init(
@@ -393,7 +432,7 @@ async function handleBootMCP() {
 }
 
 async function handleRefreshTools() {
-  if (!state.mcpClient || !state.bridge) return;
+  if (!state.mcpClient) return;
   
   try {
     // Refresh tools
@@ -413,9 +452,13 @@ async function handleRefreshTools() {
     }
 
     // Discover resources and prompts
+    // Create temporary resource manager if bridge doesn't exist yet
+    const resourceManager = state.bridge?.resourceManager || 
+      new McpResourceManager(state.mcpClient);
+    
     const [resources, prompts] = await Promise.all([
-      state.bridge.resourceManager.discoverResources(),
-      state.bridge.resourceManager.discoverPrompts()
+      resourceManager.discoverResources(),
+      resourceManager.discoverPrompts()
     ]);
 
     state.availableResources = resources;
@@ -423,10 +466,16 @@ async function handleRefreshTools() {
 
     console.log(`Discovered ${resources.length} resources and ${prompts.length} prompts`);
     
+    // Index resources for semantic search (only if bridge exists)
+    if (resources.length > 0 && state.bridge) {
+      await state.bridge.resourceDiscovery.indexResources();
+    }
+    
     if (resources.length > 0 || prompts.length > 0) {
       addSystemMessage(
         `📚 Discovered ${resources.length} resource(s) and ${prompts.length} prompt template(s). ` +
-        `These features are available for context augmentation.`
+        (state.bridge ? `Semantic search enabled for automatic context enrichment.` : 
+         `Load a model for semantic search and tool support.`)
       );
     }
   } catch (error: any) {
