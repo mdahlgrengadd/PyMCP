@@ -17,8 +17,13 @@ export function extractFunctionCall(text: string): FunctionCall | null {
   if (!match) return null;
 
   try {
+    // Extract only the JSON part between the tags
     const jsonStr = match[1].trim();
-    const parsed = JSON.parse(jsonStr);
+
+    // Sometimes the model wraps it in extra quotes or includes text - clean it
+    const cleanJson = jsonStr.replace(/^["']|["']$/g, '').trim();
+
+    const parsed = JSON.parse(cleanJson);
 
     if (parsed.name && typeof parsed.name === 'string') {
       return {
@@ -27,7 +32,7 @@ export function extractFunctionCall(text: string): FunctionCall | null {
       };
     }
   } catch (e) {
-    console.error('Failed to parse function call:', e);
+    console.error('Failed to parse function call:', e, 'Content:', match[1]);
   }
 
   return null;
