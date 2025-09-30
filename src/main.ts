@@ -1,8 +1,12 @@
 import './styles/chat.css';
 import { PyodideMcpClient } from './lib/mcp-pyodide-client';
-import { WebLLMClient } from './lib/webllm-client';
-import { McpWebLLMBridge, ToolExecution } from './lib/mcp-webllm-bridge';
-import type { ChatMessage } from './lib/webllm-client';
+import type { LLMClientInterface, ChatMessage } from './lib/llm-client-interface';
+import { McpLLMBridge, ToolExecution } from './lib/mcp-llm-bridge';
+import { LLMClientFactory } from './lib/llm-client-factory';
+import { detectCapabilities, formatCapabilitiesForUI, getCapabilityWarnings } from './lib/browser-capabilities';
+import { getCompatibleModels, getRecommendedModel, getModelById, formatModelDescription } from './lib/model-registry';
+import type { BrowserCapabilities } from './lib/browser-capabilities';
+import type { ModelInfo } from './lib/model-registry';
 import DOMPurify from 'dompurify';
 import { marked } from 'marked';
 
@@ -11,14 +15,16 @@ import { marked } from 'marked';
 // ============================================================================
 
 interface AppState {
-  llmClient: WebLLMClient | null;
+  llmClient: LLMClientInterface | null;
   mcpClient: PyodideMcpClient | null;
-  bridge: McpWebLLMBridge | null;
+  bridge: McpLLMBridge | null;
   conversationHistory: ChatMessage[];
   isLLMLoaded: boolean;
   isMCPLoaded: boolean;
   isGenerating: boolean;
-  currentModelId: string;
+  currentModelInfo: ModelInfo | null;
+  browserCapabilities: BrowserCapabilities | null;
+  compatibleModels: ModelInfo[];
 }
 
 const state: AppState = {
@@ -29,7 +35,9 @@ const state: AppState = {
   isLLMLoaded: false,
   isMCPLoaded: false,
   isGenerating: false,
-  currentModelId: ''
+  currentModelInfo: null,
+  browserCapabilities: null,
+  compatibleModels: []
 };
 
 // ============================================================================
@@ -42,6 +50,8 @@ const modelProgress = document.getElementById('model-progress') as HTMLDivElemen
 const progressFill = document.getElementById('progress-fill') as HTMLDivElement;
 const progressText = document.getElementById('progress-text') as HTMLParagraphElement;
 const modelStatus = document.getElementById('model-status') as HTMLSpanElement;
+const capabilitiesStatus = document.getElementById('capabilities-status') as HTMLSpanElement;
+const modelDescription = document.getElementById('model-description') as HTMLDivElement;
 
 const serverSelect = document.getElementById('server-select') as HTMLSelectElement;
 const serverUrlInput = document.getElementById('server-url') as HTMLInputElement;
@@ -60,6 +70,12 @@ const autoScrollCheckbox = document.getElementById('auto-scroll') as HTMLInputEl
 const streamResponseCheckbox = document.getElementById('stream-response') as HTMLInputElement;
 const clearChatBtn = document.getElementById('clear-chat-btn') as HTMLButtonElement;
 
+// wllama configuration elements
+const wllamaConfig = document.getElementById('wllama-config') as HTMLDivElement;
+const wllamaMultithreadCheckbox = document.getElementById('wllama-multithread') as HTMLInputElement;
+const wllamaThreadsSlider = document.getElementById('wllama-threads') as HTMLInputElement;
+const wllamaThreadsValue = document.getElementById('wllama-threads-value') as HTMLSpanElement;
+
 // ============================================================================
 // Event Listeners
 // ============================================================================
@@ -70,6 +86,10 @@ refreshToolsBtn.addEventListener('click', handleRefreshTools);
 sendBtn.addEventListener('click', handleSendMessage);
 stopBtn.addEventListener('click', handleStopGeneration);
 clearChatBtn.addEventListener('click', handleClearChat);
+
+modelSelect.addEventListener('change', handleModelSelectChange);
+wllamaMultithreadCheckbox?.addEventListener('change', updateWllamaConfig);
+wllamaThreadsSlider?.addEventListener('input', updateWllamaConfig);
 
 serverSelect.addEventListener('change', () => {
   const isCustomUrl = serverSelect.value === 'url';
@@ -103,37 +123,174 @@ chatInput.addEventListener('keydown', (e) => {
 });
 
 // ============================================================================
+// Initialization
+// ============================================================================
+
+async function initializeApp() {
+  try {
+    // Detect browser capabilities
+    state.browserCapabilities = await detectCapabilities();
+
+    // Update capabilities display
+    if (capabilitiesStatus) {
+      capabilitiesStatus.textContent = formatCapabilitiesForUI(state.browserCapabilities);
+    }
+
+    // Show capability warnings
+    const warnings = getCapabilityWarnings(state.browserCapabilities);
+    if (warnings.length > 0) {
+      addSystemMessage(`Browser capabilities: ${warnings.join(', ')}`);
+    }
+
+    // Get compatible models and populate select
+    state.compatibleModels = getCompatibleModels(state.browserCapabilities);
+    populateModelSelect();
+
+    // Get recommended model
+    const recommended = getRecommendedModel(state.browserCapabilities);
+    if (recommended) {
+      modelSelect.value = recommended.id;
+      handleModelSelectChange();
+    }
+
+    console.log('App initialized with capabilities:', state.browserCapabilities);
+    console.log('Compatible models:', state.compatibleModels.length);
+  } catch (error: any) {
+    console.error('Failed to initialize app:', error);
+    addSystemMessage(`Initialization failed: ${error.message}`);
+  }
+}
+
+function populateModelSelect() {
+  modelSelect.innerHTML = '';
+
+  if (state.compatibleModels.length === 0) {
+    modelSelect.innerHTML = '<option value="">No compatible models found</option>';
+    loadModelBtn.disabled = true;
+    return;
+  }
+
+  for (const model of state.compatibleModels) {
+    const option = document.createElement('option');
+    option.value = model.id;
+    option.textContent = `${model.name} (${model.size})`;
+    modelSelect.appendChild(option);
+  }
+
+  loadModelBtn.disabled = false;
+}
+
+function handleModelSelectChange() {
+  const selectedId = modelSelect.value;
+  const modelInfo = getModelById(selectedId);
+
+  if (!modelInfo) return;
+
+  state.currentModelInfo = modelInfo;
+
+  // Update model description
+  if (modelDescription) {
+    modelDescription.style.display = 'block';
+    modelDescription.innerHTML = `
+      <p><strong>${modelInfo.name}</strong></p>
+      <p>${formatModelDescription(modelInfo)}</p>
+      <div class="model-tags">
+        ${modelInfo.tags.map(tag => `<span class="tag">${tag}</span>`).join('')}
+      </div>
+    `;
+  }
+
+  // Show/hide wllama config
+  if (wllamaConfig) {
+    wllamaConfig.style.display = modelInfo.type === 'wllama' ? 'block' : 'none';
+  }
+
+  // Update wllama threading based on capabilities
+  if (modelInfo.type === 'wllama' && state.browserCapabilities) {
+    const canUseThreads = state.browserCapabilities.wasmThreads && state.browserCapabilities.sharedArrayBuffer;
+
+    if (wllamaMultithreadCheckbox) {
+      wllamaMultithreadCheckbox.disabled = !canUseThreads;
+      wllamaMultithreadCheckbox.checked = canUseThreads;
+
+      if (!canUseThreads) {
+        wllamaMultithreadCheckbox.parentElement!.title = 'Multi-threading requires SharedArrayBuffer and CORS headers';
+      }
+    }
+
+    if (wllamaThreadsSlider) {
+      const maxThreads = Math.min(navigator.hardwareConcurrency || 4, 8);
+      wllamaThreadsSlider.max = maxThreads.toString();
+      wllamaThreadsSlider.value = Math.max(1, Math.floor(maxThreads * 0.75)).toString();
+      updateWllamaConfig();
+    }
+  }
+}
+
+function updateWllamaConfig() {
+  if (wllamaThreadsValue && wllamaThreadsSlider) {
+    wllamaThreadsValue.textContent = wllamaThreadsSlider.value;
+  }
+}
+
+// ============================================================================
 // Model Loading
 // ============================================================================
 
 async function handleLoadModel() {
-  const modelId = modelSelect.value;
-  
+  if (!state.currentModelInfo || !state.browserCapabilities) {
+    addSystemMessage('Please select a model first');
+    return;
+  }
+
   try {
     loadModelBtn.disabled = true;
     modelProgress.style.display = 'block';
     modelStatus.textContent = 'Loading...';
-    
-    state.llmClient = new WebLLMClient();
-    
-    await state.llmClient.init(modelId, (report) => {
+
+    // Get wllama configuration if needed
+    const config = state.currentModelInfo.type === 'wllama' ? {
+      wllama: {
+        multiThread: wllamaMultithreadCheckbox?.checked ?? true,
+        numThreads: parseInt(wllamaThreadsSlider?.value ?? '4')
+      }
+    } : undefined;
+
+    // Create appropriate client
+    state.llmClient = await LLMClientFactory.createClient(
+      state.currentModelInfo,
+      state.browserCapabilities,
+      config
+    );
+
+    // Initialize with progress tracking
+    // For wllama, use the modelFile path; for WebLLM, use the ID
+    const modelIdentifier = state.currentModelInfo.type === 'wllama'
+      ? state.currentModelInfo.modelFile || state.currentModelInfo.id
+      : state.currentModelInfo.id;
+
+    await state.llmClient.init(modelIdentifier, (report) => {
       const progress = Math.round(report.progress * 100);
       progressFill.style.width = `${progress}%`;
       progressText.textContent = report.text;
     });
-    
+
     state.isLLMLoaded = true;
-    state.currentModelId = modelId;
-    modelStatus.textContent = `✓ ${modelId.split('-')[0]} loaded`;
+    const modelName = state.currentModelInfo.name.split(' ')[0];
+    const clientType = state.llmClient.getClientType().toUpperCase();
+    modelStatus.textContent = `✓ ${modelName} (${clientType})`;
     modelStatus.style.color = 'var(--success)';
-    
-    addSystemMessage(`Model ${modelId} loaded successfully! ${state.isMCPLoaded ? 'You can now chat with tool support.' : 'Boot MCP server for tool support.'}`);
-    
+
+    addSystemMessage(
+      `Model ${state.currentModelInfo.name} loaded successfully using ${clientType}! ` +
+      `${state.isMCPLoaded ? 'You can now chat with tool support.' : 'Boot MCP server for tool support.'}`
+    );
+
     // Create bridge if MCP is already loaded
     if (state.mcpClient) {
-      state.bridge = new McpWebLLMBridge(state.llmClient, state.mcpClient);
+      state.bridge = new McpLLMBridge(state.llmClient, state.mcpClient);
     }
-    
+
     updateUIState();
   } catch (error: any) {
     console.error('Failed to load model:', error);
@@ -183,7 +340,7 @@ async function handleBootMCP() {
     
     // Create bridge if LLM is already loaded
     if (state.llmClient) {
-      state.bridge = new McpWebLLMBridge(state.llmClient, state.mcpClient);
+      state.bridge = new McpLLMBridge(state.llmClient, state.mcpClient);
     }
     
     await handleRefreshTools();
@@ -510,6 +667,12 @@ function renderMarkdown(content: string): string {
 // Initialize
 // ============================================================================
 
-console.log('WebLLM Chat Agent initialized');
-console.log('⚡ Load a model to start chatting');
-console.log('🔧 Boot MCP server for tool support');
+document.addEventListener('DOMContentLoaded', async () => {
+  console.log('WebLLM Chat Agent with wllama support initialized');
+  console.log('🔍 Detecting browser capabilities...');
+
+  await initializeApp();
+
+  console.log('⚡ Select and load a model to start chatting');
+  console.log('🔧 Boot MCP server for tool support');
+});

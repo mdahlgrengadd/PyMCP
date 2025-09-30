@@ -14,6 +14,7 @@
           <div class="header-status">
             <span id="model-status" class="status-badge">Not loaded</span>
             <span id="tools-status" class="status-badge">0 tools</span>
+            <span id="capabilities-status" class="status-badge">Detecting...</span>
           </div>
         </div>
       </header>
@@ -25,12 +26,22 @@
           <div class="sidebar-section">
             <h3>🤖 Model</h3>
             <select id="model-select" class="model-select">
-              <option value="Llama-3.2-3B-Instruct-q4f32_1-MLC">Llama 3.2 3B (Fast)</option>
-              <option value="Llama-3.1-8B-Instruct-q4f32_1-MLC">Llama 3.1 8B (Better)</option>
-              <option value="Phi-3.5-mini-instruct-q4f16_1-MLC">Phi 3.5 Mini</option>
-              <option value="Qwen2.5-7B-Instruct-q4f32_1-MLC">Qwen 2.5 7B</option>
+              <option value="">Loading models...</option>
             </select>
-            <button id="load-model-btn" class="primary-btn">Load Model</button>
+            <div id="model-description" class="model-description" style="margin: 10px 0; padding: 10px; background: var(--bg-tertiary); border-radius: 4px; font-size: 0.875rem; display: none;">
+            </div>
+            <div id="wllama-config" class="wllama-config" style="display: none; margin: 10px 0; padding: 10px; background: var(--bg-tertiary); border-radius: 4px;">
+              <h4 style="margin: 0 0 8px 0; font-size: 0.875rem;">wllama Configuration</h4>
+              <label style="display: block; margin-bottom: 8px;">
+                <input type="checkbox" id="wllama-multithread" checked />
+                Multi-threading (faster, requires CORS headers)
+              </label>
+              <label style="display: block;">
+                Threads: <span id="wllama-threads-value">4</span>
+                <input type="range" id="wllama-threads" min="1" max="8" value="4" style="width: 100%; margin-top: 4px;" />
+              </label>
+            </div>
+            <button id="load-model-btn" class="primary-btn" disabled>Load Model</button>
             <div id="model-progress" class="progress-container" style="display: none;">
               <div class="progress-bar">
                 <div id="progress-fill" class="progress-fill"></div>

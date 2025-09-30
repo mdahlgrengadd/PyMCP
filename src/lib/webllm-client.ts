@@ -1,40 +1,41 @@
 import * as webllm from '@mlc-ai/web-llm';
+import type {
+  LLMClientInterface,
+  ChatMessage,
+  ToolCall,
+  ProgressCallback,
+  StreamCallback,
+  ProgressReport
+} from './llm-client-interface';
 
-export interface ChatMessage {
-  role: 'system' | 'user' | 'assistant' | 'tool';
-  content: string;
-  tool_calls?: ToolCall[];
-  tool_call_id?: string;
-  name?: string;
-}
-
-export interface ToolCall {
-  id: string;
-  type: 'function';
-  function: {
-    name: string;
-    arguments: string; // JSON string
-  };
-}
-
-export class WebLLMClient {
+export class WebLLMClient implements LLMClientInterface {
   private engine: webllm.MLCEngine | null = null;
   private modelId: string = '';
   
   async init(
     modelId: string = 'Llama-3.2-3B-Instruct-q4f32_1-MLC',
-    onProgress?: (report: webllm.InitProgressReport) => void
+    onProgress?: ProgressCallback
   ): Promise<void> {
     this.modelId = modelId;
+
+    const webllmProgress = onProgress ? (report: webllm.InitProgressReport) => {
+      const progressReport: ProgressReport = {
+        progress: report.progress,
+        text: report.text,
+        timeElapsed: report.timeElapsed
+      };
+      onProgress(progressReport);
+    } : undefined;
+
     this.engine = await webllm.CreateMLCEngine(modelId, {
-      initProgressCallback: onProgress
+      initProgressCallback: webllmProgress
     });
   }
   
   async chat(
     messages: ChatMessage[],
     tools?: any[],
-    onStream?: (delta: string, snapshot: string) => void
+    onStream?: StreamCallback
   ): Promise<ChatMessage> {
     if (!this.engine) throw new Error('Engine not initialized');
     
@@ -94,5 +95,13 @@ export class WebLLMClient {
   
   getRuntimeStats(): any {
     return this.engine ? (this.engine as any).runtimeStatsText?.() : null;
+  }
+
+  isReady(): boolean {
+    return this.engine !== null;
+  }
+
+  getClientType(): 'webllm' | 'wllama' {
+    return 'webllm';
   }
 } 

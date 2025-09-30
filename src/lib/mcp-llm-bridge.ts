@@ -1,5 +1,5 @@
 import { PyodideMcpClient } from './mcp-pyodide-client';
-import { WebLLMClient, ChatMessage, ToolCall } from './webllm-client';
+import type { LLMClientInterface, ChatMessage, ToolCall } from './llm-client-interface';
 
 export interface ConversationState {
   messages: ChatMessage[];
@@ -15,9 +15,9 @@ export interface ToolExecution {
   error?: string;
 }
 
-export class McpWebLLMBridge {
+export class McpLLMBridge {
   constructor(
-    private llmClient: WebLLMClient,
+    private llmClient: LLMClientInterface,
     private mcpClient: PyodideMcpClient
   ) {}
   

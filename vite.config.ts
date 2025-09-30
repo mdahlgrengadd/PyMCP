@@ -5,7 +5,7 @@ export default defineConfig({
     format: 'es'
   },
   optimizeDeps: {
-    exclude: ['@mlc-ai/web-llm']
+    exclude: ['@mlc-ai/web-llm', '@wllama/wllama']
   },
   server: {
     port: 5173,
@@ -20,11 +20,13 @@ export default defineConfig({
       output: {
         manualChunks: {
           'vendor-webllm': ['@mlc-ai/web-llm'],
+          'vendor-wllama': ['@wllama/wllama'],
           'vendor-markdown': ['marked', 'dompurify'],
           'vendor-validation': ['ajv']
         }
       }
     },
     chunkSizeWarningLimit: 2000
-  }
+  },
+  assetsInclude: ['**/*.wasm']
 });

@@ -11,6 +11,9 @@ importers:
       '@mlc-ai/web-llm':
         specifier: ^0.2.79
         version: 0.2.79
+      '@wllama/wllama':
+        specifier: ^2.3.5
+        version: 2.3.5
       ajv:
         specifier: ^8.17.1
         version: 8.17.1
@@ -287,6 +290,9 @@ packages:
   '@types/trusted-types@2.0.7':
     resolution: {integrity: sha512-ScaPdn1dQczgbl0QFTeTOmVHFULt394XJgOQNoyVhZ6r2vLnMLJfBPd53SB52T/3G36VI1/g2MZaX0cwDuXsfw==}
 
+  '@wllama/wllama@2.3.5':
+    resolution: {integrity: sha512-R8C9ajDt4c8/z9et84G+YHSG9hxzC2gEU0F4bMUBwtMW89ux/o1WirJ/E9CONU3llCLLdBdqoa7NyLG6ERSuhw==}
+
   ajv@8.17.1:
     resolution: {integrity: sha512-B/gBuNg5SiMTrPkC+A2+cW0RszwxYmn6VYxB/inlBStS5nx6xHIt/ehKRhIMhqusl7a8LjQoZnjCs5vhwxOQ1g==}
 
@@ -527,6 +533,8 @@ snapshots:
 
   '@types/trusted-types@2.0.7':
     optional: true
+
+  '@wllama/wllama@2.3.5': {}
 
   ajv@8.17.1:
     dependencies:
