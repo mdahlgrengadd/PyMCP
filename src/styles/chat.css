@@ -612,4 +612,120 @@ body {
 
 .hidden {
   display: none !important;
+}
+
+/* Prompt Inspiration Cards */
+.prompt-cards-container {
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-color);
+  padding: 1.5rem;
+  overflow-y: auto;
+  max-height: 300px;
+}
+
+.prompt-cards-header {
+  margin-bottom: 1rem;
+}
+
+.prompt-cards-header h3 {
+  font-size: 1.25rem;
+  color: var(--text-primary);
+  margin: 0 0 0.25rem 0;
+}
+
+.prompt-cards-header p {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.prompt-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1rem;
+}
+
+.prompt-card {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 1rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.prompt-card:hover {
+  border-color: var(--accent-primary);
+  background: #252525;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.15);
+}
+
+.prompt-card-icon {
+  font-size: 2rem;
+  margin-bottom: 0.5rem;
+  display: block;
+}
+
+.prompt-card-title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 0.5rem;
+}
+
+.prompt-card-description {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  line-height: 1.4;
+  margin-bottom: 0.75rem;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.prompt-card-example {
+  font-size: 0.75rem;
+  color: var(--accent-primary);
+  background: var(--bg-secondary);
+  padding: 0.5rem;
+  border-radius: 4px;
+  font-family: 'Courier New', monospace;
+  border-left: 2px solid var(--accent-primary);
+  margin-top: 0.5rem;
+  font-style: italic;
+}
+
+.prompt-card::after {
+  content: '→';
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  font-size: 1.5rem;
+  color: var(--accent-primary);
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.prompt-card:hover::after {
+  opacity: 1;
+}
+
+/* Hide prompt cards when chat starts */
+.chat-messages:not(:has(.welcome-message)) ~ .prompt-cards-container {
+  display: none;
+}
+
+/* Responsive prompt cards */
+@media (max-width: 768px) {
+  .prompt-cards {
+    grid-template-columns: 1fr;
+  }
+  
+  .prompt-cards-container {
+    max-height: 200px;
+  }
 } 

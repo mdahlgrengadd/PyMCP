@@ -79,6 +79,9 @@ const chatInput = document.getElementById('chat-input') as HTMLTextAreaElement;
 const sendBtn = document.getElementById('send-btn') as HTMLButtonElement;
 const stopBtn = document.getElementById('stop-btn') as HTMLButtonElement;
 
+const promptCardsContainer = document.getElementById('prompt-cards-container') as HTMLDivElement;
+const promptCards = document.getElementById('prompt-cards') as HTMLDivElement;
+
 const autoScrollCheckbox = document.getElementById('auto-scroll') as HTMLInputElement;
 const streamResponseCheckbox = document.getElementById('stream-response') as HTMLInputElement;
 const clearChatBtn = document.getElementById('clear-chat-btn') as HTMLButtonElement;
@@ -145,10 +148,159 @@ serverSelect.addEventListener('change', () => {
   } else if (!isCustomUrl) {
     serverUrlInput.value = '';
   }
+  
+  // Update prompt cards for new server
+  renderPromptCards();
 });
 
 // Trigger initial description
 serverSelect.dispatchEvent(new Event('change'));
+
+// ============================================================================
+// Prompt Inspiration Cards
+// ============================================================================
+
+interface PromptCard {
+  icon: string;
+  title: string;
+  description: string;
+  example: string;
+}
+
+const PROMPT_CARDS_BY_SERVER: Record<string, PromptCard[]> = {
+  'chef': [
+    {
+      icon: '🍝',
+      title: 'Recipe Guidance',
+      description: 'Get step-by-step instructions for making delicious dishes',
+      example: 'Show me how to make vegan pasta primavera'
+    },
+    {
+      icon: '🥗',
+      title: 'Dietary Adaptations',
+      description: 'Find recipes matching your dietary restrictions',
+      example: 'What vegan recipes do you have?'
+    },
+    {
+      icon: '🔄',
+      title: 'Ingredient Substitutes',
+      description: 'Replace ingredients based on availability or preferences',
+      example: 'What can I use instead of butter for vegan cooking?'
+    },
+    {
+      icon: '📏',
+      title: 'Recipe Scaling',
+      description: 'Adjust recipes for different serving sizes',
+      example: 'Scale the vegan pasta recipe for 8 people'
+    }
+  ],
+  'fitness': [
+    {
+      icon: '💪',
+      title: 'Workout Programs',
+      description: 'Get personalized workout plans for your goals',
+      example: 'Create a strength training program for beginners'
+    },
+    {
+      icon: '🎯',
+      title: 'Exercise Library',
+      description: 'Learn proper form and techniques',
+      example: 'Show me exercises for building chest muscles'
+    },
+    {
+      icon: '📊',
+      title: 'Progress Tracking',
+      description: 'Monitor your fitness journey',
+      example: 'How should I track my strength gains?'
+    },
+    {
+      icon: '🍎',
+      title: 'Nutrition Guidance',
+      description: 'Calculate macros and plan meals',
+      example: 'Calculate my daily protein needs for muscle building'
+    }
+  ],
+  'coding': [
+    {
+      icon: '💻',
+      title: 'Code Tutorials',
+      description: 'Learn programming concepts step-by-step',
+      example: 'Teach me about async/await in JavaScript'
+    },
+    {
+      icon: '🐛',
+      title: 'Debug Help',
+      description: 'Find and fix bugs in your code',
+      example: 'Help me debug this Python function'
+    },
+    {
+      icon: '🏗️',
+      title: 'Architecture Advice',
+      description: 'Design patterns and best practices',
+      example: 'What\'s the best way to structure a React app?'
+    },
+    {
+      icon: '📚',
+      title: 'Code Review',
+      description: 'Get feedback on your code quality',
+      example: 'Review my TypeScript code for improvements'
+    }
+  ],
+  'embedded': [
+    {
+      icon: '🔧',
+      title: 'Basic Tools Demo',
+      description: 'Try out the calculator and timer tools',
+      example: 'Calculate 15% tip on $85'
+    },
+    {
+      icon: '⏰',
+      title: 'Set Reminders',
+      description: 'Create timers for tasks',
+      example: 'Set a timer for 25 minutes'
+    },
+    {
+      icon: '📝',
+      title: 'General Chat',
+      description: 'Have a conversation with the AI',
+      example: 'Tell me about the weather today'
+    }
+  ]
+};
+
+function renderPromptCards() {
+  const selectedServer = serverSelect.value;
+  const cards = PROMPT_CARDS_BY_SERVER[selectedServer] || [];
+  
+  if (cards.length === 0 || state.conversationHistory.length > 0) {
+    promptCardsContainer.style.display = 'none';
+    return;
+  }
+  
+  promptCardsContainer.style.display = 'block';
+  promptCards.innerHTML = cards.map(card => `
+    <div class="prompt-card" data-example="${card.example}">
+      <span class="prompt-card-icon">${card.icon}</span>
+      <div class="prompt-card-title">${card.title}</div>
+      <div class="prompt-card-description">${card.description}</div>
+      <div class="prompt-card-example">"${card.example}"</div>
+    </div>
+  `).join('');
+  
+  // Add click handlers
+  promptCards.querySelectorAll('.prompt-card').forEach(card => {
+    card.addEventListener('click', () => {
+      const example = (card as HTMLElement).dataset.example;
+      if (example) {
+        chatInput.value = example;
+        chatInput.dispatchEvent(new Event('input'));
+        chatInput.focus();
+        // Optionally auto-send
+        // handleSendMessage();
+      }
+    });
+  });
+}
 
 chatInput.addEventListener('input', () => {
   // Auto-resize textarea
@@ -407,6 +559,9 @@ async function handleBootMCP() {
     
     await handleRefreshTools();
     
+    // Render prompt cards for inspiration
+    renderPromptCards();
+    
     // Warn about function calling support
     if (state.llmClient && state.currentModelInfo) {
       const modelSupportsTools = state.currentModelInfo.supportsFunctionCalling !== false;
@@ -497,6 +652,9 @@ async function handleSendMessage() {
   
   // Add user message to UI
   addUserMessage(message);
+  
+  // Hide prompt cards once conversation starts
+  renderPromptCards();
   
   // Update state
   state.isGenerating = true;
@@ -658,6 +816,9 @@ function handleClearChat() {
     if (state.llmClient) {
       state.llmClient.reset();
     }
+    
+    // Show prompt cards again
+    renderPromptCards();
   }
 }
 
