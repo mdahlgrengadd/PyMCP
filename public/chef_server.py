@@ -454,6 +454,62 @@ class ChefService(McpServer):
             "note": f"Multiply all ingredient amounts by {round(scale_factor, 2)}"
         }
 
+    def search_recipes(self, query: str, max_results: int = 5) -> List[Dict[str, Any]]:
+        """Search for recipes by cuisine, ingredients, dish name, or cooking style.
+
+        Searches across recipe names, categories, tags, and ingredients using keyword matching.
+        Returns detailed recipe information with resource URIs.
+
+        Examples: "Thai", "pasta", "chicken", "Mexican tacos", "easy desserts", "spicy"
+        """
+        query_lower: str = query.lower()
+        query_words: set[str] = set(query_lower.split())
+
+        results: List[Dict[str, Any]] = []
+        for recipe_id, recipe in RECIPES.items():
+            score: int = 0
+
+            # Check name (highest weight)
+            name: str = str(recipe.get('name', ''))
+            if query_lower in name.lower():
+                score += 10
+
+            # Check category (high weight)
+            category: str = str(recipe.get('category', ''))
+            if query_lower in category.lower():
+                score += 8
+
+            # Check tags (medium weight)
+            raw_tags = recipe.get('tags', [])
+            tags: List[str] = [str(tag).lower() for tag in raw_tags] if isinstance(
+                raw_tags, list) else []
+            for tag in tags:
+                if query_lower in tag or any(word in tag for word in query_words):
+                    score += 3
+
+            # Check ingredients (lower weight)
+            raw_ingredients = recipe.get('ingredients', [])
+            ingredients: List[str] = [str(ing).lower(
+            ) for ing in raw_ingredients] if isinstance(raw_ingredients, list) else []
+            for ingredient in ingredients:
+                if any(word in ingredient for word in query_words):
+                    score += 1
+
+            if score > 0:
+                results.append({
+                    'recipe_id': recipe_id,
+                    'name': name,
+                    'resource_uri': f'res://{recipe_id}',
+                    'category': category,
+                    'difficulty': str(recipe.get('difficulty', '')),
+                    'score': score
+                })
+
+        # Sort by score and return top results
+        results.sort(key=lambda x: int(
+            x['score']), reverse=True)  # type: ignore
+        return results[:max_results]
+
     def find_recipes_by_dietary(
         self,
         dietary_restriction: Literal["vegan",
@@ -461,8 +517,7 @@ class ChefService(McpServer):
     ) -> list[str]:
         """Find recipes matching specific dietary restrictions (vegan, vegetarian, gluten-free, dairy-free).
 
-        Note: For general recipe search by cuisine, ingredients, or dish type, 
-        rely on the client-side semantic vector search which is more accurate.
+        For general recipe search by cuisine, ingredients, or dish type, use search_recipes instead.
         """
 
         matching: List[str] = []

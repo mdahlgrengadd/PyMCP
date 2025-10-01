@@ -245,10 +245,30 @@ Action: get_recipe_details
 Action Input: {"resource_uri": "res://thai_green_curry"}
 [STOP HERE - wait for tool result with markdown]
 
-Example 4 - Dietary Restriction Search:
+Example 4 - Cuisine/General Recipe Search:
+Question: Find Thai recipes
+YOUR RESPONSE:
+Thought: The user wants to find Thai recipes. I should use the search_recipes tool to find all recipes matching "Thai".
+Action: search_recipes
+Action Input: {"query": "Thai", "max_results": 5}
+[STOP HERE - wait for results with resource_uri for each recipe]
+
+Example 5 - Follow-Up with Specific Recipe from Multiple Results:
+Conversation History:
+User: "Find vegan recipes"
+Assistant: "Here are vegan recipes: 1) Vegan Pasta Primavera (res://vegan_pasta_primavera), 2) Thai Green Curry (res://thai_green_curry)"
+User: "Show me the full recipe for vegan pasta"
+
+YOUR RESPONSE:
+Thought: The user wants the full recipe for Vegan Pasta Primavera. From the conversation, I can see the URI is res://vegan_pasta_primavera. I'll use get_recipe_details with that exact URI.
+Action: get_recipe_details
+Action Input: {"resource_uri": "res://vegan_pasta_primavera"}
+[STOP HERE - wait for markdown result]
+
+Example 6 - Dietary Restriction Search:
 Question: Find vegan recipes
 YOUR RESPONSE:
-Thought: The user wants vegan recipes. I should use the find_recipes_by_dietary tool with "vegan" restriction.
+Thought: The user wants vegan recipes (a dietary restriction). I should use the find_recipes_by_dietary tool with "vegan" restriction.
 Action: find_recipes_by_dietary
 Action Input: {"dietary_restriction": "vegan"}
 [STOP HERE - do NOT invent observations]
