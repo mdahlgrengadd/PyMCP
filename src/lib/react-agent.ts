@@ -141,7 +141,7 @@ export class ReActAgent {
     ).join('\n\n');
 
     const resourceContext = context.relevantResources.length > 0
-      ? `\n\n## Available Context:\n${context.relevantResources.map(r => r.content.substring(0, 300)).join('\n\n')}`
+      ? `\n\n## ⚠️ IMPORTANT - Context Already Available:\nThe following information has already been retrieved for you. CHECK THIS FIRST before calling any tools!\n\n${context.relevantResources.map((r, i) => `[Context ${i+1}]:\n${r.content.substring(0, 500)}`).join('\n\n---\n\n')}`
       : '';
 
     return `You are a helpful assistant that uses tools to answer questions accurately.
@@ -163,16 +163,26 @@ Thought: [final reasoning]
 Final Answer: [your complete response to the user]
 
 ## CRITICAL RULES:
-1. ONE tool call per response
-2. ALWAYS include "Thought:" before every action
-3. Use ONLY tools from the list above
-4. Action Input must be valid JSON
-5. Don't make up information - use tool results
+1. **CHECK AVAILABLE CONTEXT FIRST** - If the answer is already in the context above, use it! Don't call tools unnecessarily.
+2. ONE tool call per response
+3. ALWAYS include "Thought:" before every action
+4. Use ONLY tools from the list above (${tools.map(t => t.name).join(', ')})
+5. Action Input must be valid JSON
+6. Don't make up information - use tool results or provided context
+7. READ tool results carefully - don't say something is missing when it's clearly in the results
 
 ## Examples:
 
-Example 1 - Your First Response:
+Example 1 - Using Available Context (NO TOOLS NEEDED):
+Question: Tell me about the Vegan Pasta Primavera recipe
+Context Already Provided: [Vegan Pasta Primavera recipe with full ingredients and instructions]
+YOUR RESPONSE:
+Thought: The user is asking about Vegan Pasta Primavera. I can see the full recipe is already provided in the context above. I don't need to call any tools - I can answer directly.
+Final Answer: Here's the Vegan Pasta Primavera recipe: [provide details from context]
+
+Example 2 - Need to Use Tool:
 Question: What's the weather in Paris?
+Context: [empty or unrelated]
 YOUR RESPONSE:
 Thought: I need to check the weather for Paris using the get_weather tool
 Action: get_weather
@@ -186,19 +196,21 @@ Then your next response:
 Thought: I have the weather information now
 Final Answer: The weather in Paris is currently 15°C and cloudy.
 
-Example 2 - First Response:
+Example 3 - Search Then Details:
 Question: Find vegan recipes
 YOUR RESPONSE:
-Thought: I should search for vegan recipes using the find_recipes_by_dietary tool
-Action: find_recipes_by_dietary
-Action Input: {"dietary_restriction": "vegan"}
+Thought: I should search for vegan recipes using the search_recipes_semantic tool
+Action: search_recipes_semantic
+Action Input: {"query": "vegan"}
 [STOP HERE - do NOT invent observations]
 
 ## CRITICAL:
+- **If context already contains the answer, use it immediately - don't call tools!**
 - NEVER generate fake "Observation:" lines - I will provide them
 - After Action Input, STOP and wait
 - Do NOT continue with "Observation:" or "Final Answer:" in same response
-- Each response should have EITHER (Action + Action Input) OR (Final Answer), NEVER BOTH${resourceContext}`;
+- Each response should have EITHER (Action + Action Input) OR (Final Answer), NEVER BOTH
+- READ tool results word-by-word before deciding what they contain${resourceContext}`;
   }
 
   /**

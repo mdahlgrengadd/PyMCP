@@ -18,7 +18,7 @@ export class ContextManager {
   // Token budgets (approximate - based on ~4 chars per token)
   private readonly MAX_TOKENS = 4096;
   private readonly SYSTEM_BUDGET = 1024;      // System prompt + tools
-  private readonly RESOURCES_BUDGET = 1024;   // Retrieved context
+  private readonly RESOURCES_BUDGET = 2048;   // Retrieved context (increased for full recipes)
   private readonly HISTORY_BUDGET = 512;      // Conversation history
   private readonly RESPONSE_BUDGET = 512;     // Reserved for response
 
@@ -62,7 +62,7 @@ export class ContextManager {
    */
   private async searchRelevantResources(
     query: string,
-    maxResults = 3
+    maxResults = 5
   ): Promise<Array<{ uri: string; content: string }>> {
     if (!this.vectorStore.isReady() || !embeddingService.isReady()) {
       return [];
@@ -72,8 +72,8 @@ export class ContextManager {
       // Generate query embedding
       const queryEmbedding = await embeddingService.embed(query);
 
-      // Search for similar resources
-      const results = await this.vectorStore.search(queryEmbedding, maxResults, 0.6);
+      // Search for similar resources (lower threshold for better recall)
+      const results = await this.vectorStore.search(queryEmbedding, maxResults, 0.5);
 
       console.log(`🔍 Found ${results.length} relevant resources (scores: ${results.map(r => r.score.toFixed(2)).join(', ')})`);
 

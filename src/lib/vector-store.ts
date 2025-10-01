@@ -76,7 +76,7 @@ export class VectorStore {
     const embeddingBlob = new Uint8Array(embedding.buffer);
 
     const metadata = JSON.stringify({
-      text: text.substring(0, 500), // Store preview
+      text: text.substring(0, 10000), // Store up to 10K chars (~2500 tokens)
       textLength: text.length,
       indexed_at: Date.now(),
       embeddingDim: embedding.length

@@ -1,8 +1,8 @@
 # 🚀 ReAct Agent V2 - System Status
 
-## ✅ ALL SYSTEMS OPERATIONAL
+## ✅ ALL SYSTEMS OPERATIONAL + PROMPT ENGINEERING FIXES APPLIED
 
-The ReAct Agent with vector-based semantic search is **fully functional** and ready for testing.
+The ReAct Agent with vector-based semantic search is **fully functional** with **enhanced prompt engineering** for better context awareness.
 
 ---
 
@@ -18,7 +18,9 @@ The ReAct Agent with vector-based semantic search is **fully functional** and re
 
 ### Bug Fixes Applied ✅
 
-All 7 critical bugs from previous session have been fixed:
+All 7 critical bugs from previous session have been fixed, plus prompt engineering improvements:
+
+**Infrastructure Bugs (Session 1):**
 
 1. ✅ **Model Hallucination** - Strips fake observations from responses
 2. ✅ **Tool Results Not Persisted** - Auto-indexes to vector DB
@@ -27,6 +29,17 @@ All 7 critical bugs from previous session have been fixed:
 5. ✅ **Resources Not Fully Indexed** - Fetches full content via `resources/read`
 6. ✅ **Resources Never Indexed** - Indexing happens AFTER discovery
 7. ✅ **SQLite Column Access** - Uses indexed `stmt.get(0)`, `stmt.get(1)`, `stmt.get(2)`
+
+**Prompt Engineering Issues (Session 2):**
+
+8. ✅ **Model Ignored Context** - Added "CHECK THIS FIRST" emphasis with ⚠️ visual marker
+9. ✅ **Model Hallucinated Tool Names** - Explicitly lists available tool names in prompt
+10. ✅ **Model Misread Results** - Added rule "READ tool results carefully"
+11. ✅ **Limited Content Storage** - Increased from 500 to 10,000 chars metadata
+12. ✅ **No Context-First Examples** - Added example showing direct answer without tools
+13. ✅ **Low Search Recall** - Lowered threshold 0.6→0.5, increased results 3→5, doubled budget
+
+See `PROMPT_ENGINEERING_FIX.md` for detailed analysis.
 
 ### Configuration ✅
 
