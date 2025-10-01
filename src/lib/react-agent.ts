@@ -157,23 +157,34 @@ Final Answer: [your complete response to the user]
 
 ## Examples:
 
-Example 1 - Simple Query:
+Example 1 - Your First Response:
 Question: What's the weather in Paris?
+YOUR RESPONSE:
 Thought: I need to check the weather for Paris using the get_weather tool
 Action: get_weather
 Action Input: {"location": "Paris"}
-Observation: {"temperature": 15, "conditions": "cloudy", "humidity": 65}
-Thought: I have the weather information now, I can provide a complete answer
-Final Answer: The weather in Paris is currently 15°C and cloudy with 65% humidity.
+[STOP HERE - wait for observation]
 
-Example 2 - Multi-step Query:
-Question: Create a task to call mom on Sunday
-Thought: I should use the create_task tool to create this reminder
-Action: create_task
-Action Input: {"title": "Call mom", "due_date": "Sunday"}
-Observation: {"id": 5, "title": "Call mom", "due_date": "Sunday", "completed": false}
-Thought: Task was created successfully with ID 5
-Final Answer: I've created a task "Call mom" for Sunday (Task ID: 5).${resourceContext}`;
+Then I will give you:
+Observation: {"temperature": 15, "conditions": "cloudy"}
+
+Then your next response:
+Thought: I have the weather information now
+Final Answer: The weather in Paris is currently 15°C and cloudy.
+
+Example 2 - First Response:
+Question: Find vegan recipes
+YOUR RESPONSE:
+Thought: I should search for vegan recipes using the find_recipes_by_dietary tool
+Action: find_recipes_by_dietary
+Action Input: {"dietary_restriction": "vegan"}
+[STOP HERE - do NOT invent observations]
+
+## CRITICAL:
+- NEVER generate fake "Observation:" lines - I will provide them
+- After Action Input, STOP and wait
+- Do NOT continue with "Observation:" or "Final Answer:" in same response
+- Each response should have EITHER (Action + Action Input) OR (Final Answer), NEVER BOTH${resourceContext}`;
   }
 
   /**
@@ -207,19 +218,25 @@ Final Answer: I've created a task "Call mom" for Sunday (Task ID: 5).${resourceC
    * Parse ReAct-formatted response
    */
   private parseReActResponse(response: string): ReActStep {
-    const lines = response.split('\n');
+    // Strip out any hallucinated observations/final answers after Action Input
+    // Model should ONLY output Thought + Action + Action Input, nothing else
+    const actionInputMatch = response.match(/(Thought:.+?Action Input:\s*\{[\s\S]*?\})/s);
+    if (actionInputMatch && response.includes('Observation:')) {
+      console.warn('⚠️ Model hallucinated Observation - stripping it out');
+      response = actionInputMatch[1];
+    }
 
     const step: ReActStep = {
       thought: ''
     };
 
-    // Extract Thought
-    const thoughtMatch = response.match(/Thought:\s*(.+?)(?=\n|$)/is);
+    // Extract Thought (only the first line after "Thought:")
+    const thoughtMatch = response.match(/Thought:\s*(.+?)(?=\n|$)/s);
     if (thoughtMatch) {
       step.thought = thoughtMatch[1].trim();
     }
 
-    // Check for Final Answer
+    // Check for Final Answer FIRST (if present, ignore actions)
     const answerMatch = response.match(/Final Answer:\s*(.+?)$/is);
     if (answerMatch) {
       step.answer = answerMatch[1].trim();
