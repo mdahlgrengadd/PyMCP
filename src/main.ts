@@ -138,12 +138,11 @@ temperatureSlider?.addEventListener('input', updateTemperature);
 
 // Server descriptions
 const SERVER_DESCRIPTIONS: Record<string, string> = {
-  embedded: "📝 Basic demo with simple tools (echo, add, get_item)",
+  hello_world: "🚀 Complete MCP example with 3 tools, 3 resources, 3 prompts. Perfect for learning MCP development!",
   chef: "👨‍🍳 Cooking assistant with recipes, conversions, and meal planning. Uses semantic search to find relevant recipes.",
   fitness: "🏋️ Personal trainer with workout programs, BMI calculator, and nutrition guidance.",
   coding: "💻 Programming mentor with code review, tutorials, and design patterns.",
-  example: "Example remote server",
-  clean: "Clean API server",
+  clean: "📝 Simple task management with modern PyMCP framework. Create, list, and manage TODOs with weather info.",
   url: "Load custom server from URL"
 };
 
@@ -161,8 +160,8 @@ serverSelect.addEventListener('change', () => {
   }
   
   // Set URL for file-based servers
-  if (value === 'example') {
-    serverUrlInput.value = '/example_remote_server.py';
+  if (value === 'hello_world') {
+    serverUrlInput.value = '/hello_world_server.py';
   } else if (value === 'clean') {
     serverUrlInput.value = '/clean_server.py';
   } else if (value === 'chef') {
@@ -191,6 +190,58 @@ interface PromptCard {
 }
 
 const PROMPT_CARDS_BY_SERVER: Record<string, PromptCard[]> = {
+  'hello_world': [
+    {
+      icon: '👋',
+      title: 'Say Hello',
+      description: 'Test the greeting tool with different names',
+      example: 'Hello Alice!'
+    },
+    {
+      icon: '🧮',
+      title: 'Math Calculator',
+      description: 'Try basic arithmetic operations',
+      example: 'Calculate 15 + 27'
+    },
+    {
+      icon: '📢',
+      title: 'Echo Test',
+      description: 'Test text processing and echo functionality',
+      example: 'Echo: Hello World!'
+    },
+    {
+      icon: '📚',
+      title: 'View Documentation',
+      description: 'Access the getting started guide and examples',
+      example: 'Show me the getting started guide'
+    }
+  ],
+  'clean': [
+    {
+      icon: '📝',
+      title: 'Create Task',
+      description: 'Add a new task to your TODO list',
+      example: 'Create a task: Learn MCP'
+    },
+    {
+      icon: '📋',
+      title: 'List Tasks',
+      description: 'View all your current tasks',
+      example: 'Show me all my tasks'
+    },
+    {
+      icon: '✅',
+      title: 'Complete Task',
+      description: 'Mark a task as completed',
+      example: 'Mark task 1 as completed'
+    },
+    {
+      icon: '🌤️',
+      title: 'Check Weather',
+      description: 'Get weather information for any location',
+      example: 'What\'s the weather in New York?'
+    }
+  ],
   'chef': [
     {
       icon: '🍝',
@@ -559,14 +610,13 @@ async function handleBootMCP() {
     );
     
     const selectedServer = serverSelect.value;
-    const serverType: 'embedded' | 'url' = 
-      selectedServer === 'embedded' ? 'embedded' : 'url';
+    const serverType: 'embedded' | 'url' = 'url';
     
     const serverConfig = serverType === 'url' ? {
       serverType,
       serverUrl: selectedServer === 'url' 
         ? serverUrlInput.value.trim()
-        : serverUrlInput.value || `/example_remote_server.py`
+        : serverUrlInput.value || `/clean_server.py`
     } : { serverType };
     
     state.mcpClient = await new PyodideMcpClient(worker).init(

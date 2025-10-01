@@ -56,7 +56,7 @@ export class ReActAgent {
       const response = await this.llmClient.chat(messages, undefined);
 
       // Parse structured ReAct output
-      const step = this.parseReActResponse(response.content || '');
+      const step = this.parseReActResponse(response.content || '', tools);
       console.log('📝 Thought:', step.thought);
 
       if (step.action) {
@@ -176,10 +176,14 @@ Final Answer: [your complete response to the user]
 1. **CHECK AVAILABLE CONTEXT FIRST** - If the answer is already in the context above, use it! Don't call tools unnecessarily.
 2. ONE tool call per response
 3. ALWAYS include "Thought:" before every action
-4. Use ONLY tools from the list above (${tools.map(t => t.name).join(', ')})
+4. **ONLY USE THESE EXACT TOOLS**: ${tools.map(t => t.name).join(', ')} - DO NOT invent or use any other tools
 5. Action Input must be valid JSON
 6. Don't make up information - use tool results or provided context
 7. READ tool results carefully - don't say something is missing when it's clearly in the results
+8. **NEVER use tools from other servers** - only use the tools listed above
+9. **If a tool doesn't exist in the list above, DO NOT use it** - instead provide a helpful response explaining what you can do
+10. **ONLY mention resources that are explicitly provided in the context above** - do NOT invent or list resources that aren't shown
+11. **If context shows specific resources, only reference those exact resources** - don't add others
 
 ### When a resource_uri is available (e.g., res://thai_green_curry, res://beginner_strength)
 - **IMPORTANT**: For follow-up questions like "show full recipe", "show details", "what ingredients", etc., ALWAYS call the appropriate details tool (get_recipe_details, get_recipe_ingredients, get_recipe_steps, get_workout_details) with the resource_uri from the conversation.
@@ -283,6 +287,28 @@ Action: find_recipes_by_dietary
 Action Input: {"dietary_restriction": "vegan"}
 [STOP HERE - do NOT invent observations]
 
+Example 7 - Tool Not Available (IMPORTANT):
+Question: Search for recipes
+Available Tools: greet, calculate, echo
+YOUR RESPONSE:
+Thought: The user wants to search for recipes, but I don't have a recipe search tool available. My available tools are greet, calculate, and echo. I should explain what I can do instead.
+Final Answer: I don't have a recipe search tool available. My available tools are:
+- greet: Say hello to someone
+- calculate: Perform basic math operations  
+- echo: Repeat back text
+
+Would you like to try one of these tools instead?
+
+Example 8 - Resource Listing (IMPORTANT):
+Question: Show me available resources
+Context Provided: [res://getting_started: Getting Started Guide content...]
+YOUR RESPONSE:
+Thought: The user wants to see available resources. I can see only one resource in the context: res://getting_started. I should only list this resource, not invent others.
+Final Answer: Here's the available resource:
+- [Getting Started Guide](res://getting_started) - Introduction to the Hello World Server
+
+For more details about any resource, just ask!
+
 ## CRITICAL:
 - **If context already contains the answer, use it immediately - don't call tools!**
 - NEVER generate fake "Observation:" lines - I will provide them
@@ -351,7 +377,7 @@ Action Input: {"dietary_restriction": "vegan"}
   /**
    * Parse ReAct-formatted response
    */
-  private parseReActResponse(response: string): ReActStep {
+  private parseReActResponse(response: string, availableTools: Tool[]): ReActStep {
     // Strip out any hallucinated observations/final answers after Action Input
     // Model should ONLY output Thought + Action + Action Input, nothing else
     const actionInputMatch = response.match(/(Thought:.+?Action Input:\s*\{[\s\S]*?\})/s);
@@ -387,8 +413,17 @@ Action Input: {"dietary_restriction": "vegan"}
 
     if (actionMatch && inputMatch) {
       try {
+        const toolName = actionMatch[1].trim();
+        
+        // Validate that the tool is available
+        const availableToolNames = availableTools.map(t => t.name);
+        if (!availableToolNames.includes(toolName)) {
+          step.observation = `ERROR: Tool "${toolName}" is not available. Available tools: ${availableToolNames.join(', ')}`;
+          return step;
+        }
+        
         step.action = {
-          tool: actionMatch[1].trim(),
+          tool: toolName,
           args: JSON.parse(inputMatch[1])
         };
       } catch (error) {
