@@ -533,7 +533,7 @@ class CodingMentorService(McpServer):
     # ===== RESOURCES (Learning Materials) =====
 
     def resource_python_basics(self) -> dict:
-        """Python Fundamentals Tutorial - Variables, control flow, functions"""
+        """Python Fundamentals Tutorial - Beginner level guide to Python basics: variables, data types, control flow, loops, functions. Learn Python programming from scratch."""
         tutorial = TUTORIALS["python_basics"]
         return {
             "mimeType": "text/markdown",
@@ -541,7 +541,7 @@ class CodingMentorService(McpServer):
         }
 
     def resource_javascript_async(self) -> dict:
-        """JavaScript Async Programming - Promises, async/await, event loop"""
+        """JavaScript Async Programming Tutorial - Intermediate level guide to async/await, promises, callbacks, and event loop. Learn asynchronous programming patterns."""
         tutorial = TUTORIALS["javascript_async"]
         return {
             "mimeType": "text/markdown",
@@ -549,7 +549,7 @@ class CodingMentorService(McpServer):
         }
 
     def resource_code_review_checklist(self) -> str:
-        """Code Review Checklist - What to look for when reviewing code"""
+        """Code Review Checklist Guide - Comprehensive checklist for reviewing code quality, functionality, security, testing, and best practices. Improve code review skills."""
         return """# Code Review Checklist
 
 ## Functionality
@@ -602,7 +602,7 @@ class CodingMentorService(McpServer):
 """
 
     def resource_clean_code_principles(self) -> str:
-        """Clean Code Principles - Writing maintainable code"""
+        """Clean Code Principles Guide - Learn best practices for writing clean, maintainable, readable code: naming conventions, functions, comments, error handling, and refactoring techniques."""
         return """# Clean Code Principles
 
 ## Naming
@@ -772,7 +772,7 @@ def validate_work_email(email):
 """
 
     def resource_design_patterns(self) -> dict:
-        """Common Design Patterns Reference"""
+        """Design Patterns Reference Guide - Learn common software design patterns: singleton, factory, observer, strategy. Understand when and how to apply design patterns in your code."""
         return {
             "mimeType": "application/json",
             "text": json.dumps(DESIGN_PATTERNS, indent=2)
