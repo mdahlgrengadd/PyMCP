@@ -42,7 +42,8 @@ export class ReActAgent {
     tools: Tool[],
     context: ConversationContext,
     maxSteps = 5,
-    onStepComplete?: (step: ReActStep) => void
+    onStepComplete?: (step: ReActStep) => void,
+    onAnswerStream?: (delta: string, snapshot: string) => void
   ): Promise<{ answer: string; steps: ReActStep[] }> {
     const steps: ReActStep[] = [];
 
@@ -52,8 +53,28 @@ export class ReActAgent {
       // Build ReAct-formatted prompt
       const messages = this.buildReActMessages(userQuery, tools, steps, context);
 
-      // Get LLM response
-      const response = await this.llmClient.chat(messages, undefined);
+      // Get LLM response (with optional streaming of Final Answer)
+      let streamedAnswerBuffer = '';
+      let streamedAnswerPrevLen = 0;
+      const response = await this.llmClient.chat(
+        messages,
+        undefined,
+        onAnswerStream
+          ? (delta, snapshot) => {
+              // Only stream content after the "Final Answer:" marker
+              const idx = snapshot.lastIndexOf('Final Answer:');
+              if (idx >= 0) {
+                const answer = snapshot.slice(idx + 'Final Answer:'.length).replace(/^\s+/, '');
+                if (answer.length > streamedAnswerPrevLen) {
+                  const addition = answer.slice(streamedAnswerPrevLen);
+                  streamedAnswerPrevLen = answer.length;
+                  streamedAnswerBuffer = answer;
+                  onAnswerStream(addition, answer);
+                }
+              }
+            }
+          : undefined
+      );
 
       // Parse structured ReAct output
       const step = this.parseReActResponse(response.content || '', tools);

@@ -58,7 +58,8 @@ export class McpLLMBridgeV2 {
     userMessage: string,
     conversationHistory: ChatMessage[],
     onStepComplete?: (step: ReActStep) => void,
-    onToolExecution?: (execution: ToolExecution) => void
+    onToolExecution?: (execution: ToolExecution) => void,
+    onAnswerStream?: (delta: string, snapshot: string) => void
   ): Promise<ConversationState> {
     console.log('🚀 Starting ReAct chat loop...');
 
@@ -110,7 +111,8 @@ export class McpLLMBridgeV2 {
         }
 
         onStepComplete?.(step);
-      }
+      },
+      onAnswerStream
     );
 
     // Build final message list

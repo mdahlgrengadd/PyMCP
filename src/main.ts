@@ -803,6 +803,8 @@ async function handleSendMessage() {
 
       let stepCount = 0;
 
+      let currentMessageId: string | null = null;
+
       const result = await state.bridgeV2!.chatWithTools(
         message,
         state.conversationHistory,
@@ -835,7 +837,16 @@ async function handleSendMessage() {
             console.log('✅ Tool succeeded:', execution.name);
           }
           addToolExecution(execution);
-        }
+        },
+        streamResponseCheckbox.checked ? (delta, snapshot) => {
+          // Stream only the final answer portion
+          removeTypingIndicator(typingId);
+          if (!currentMessageId) {
+            currentMessageId = addAssistantMessage(snapshot || '', true);
+          } else {
+            updateMessage(currentMessageId, snapshot || '');
+          }
+        } : undefined
       );
 
       // Update conversation history
@@ -860,13 +871,17 @@ async function handleSendMessage() {
         });
       }
 
-      // Display final message
-      removeTypingIndicator(typingId);
-      const lastAssistantMsg = result.messages
-        .filter(m => m.role === 'assistant' && m.content)
-        .pop();
-      if (lastAssistantMsg) {
-        addAssistantMessage(lastAssistantMsg.content);
+      // Display final message (if not streaming)
+      if (!streamResponseCheckbox.checked) {
+        removeTypingIndicator(typingId);
+        const lastAssistantMsg = result.messages
+          .filter(m => m.role === 'assistant' && m.content)
+          .pop();
+        if (lastAssistantMsg) {
+          addAssistantMessage(lastAssistantMsg.content);
+        }
+      } else if (currentMessageId) {
+        finalizeMessage(currentMessageId);
       }
 
     } else if (state.bridge && state.isMCPLoaded) {
