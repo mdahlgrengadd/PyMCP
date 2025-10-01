@@ -145,6 +145,28 @@ export class McpLLMBridge {
     // Add user message
     messages.push({ role: 'user', content: userMessage });
 
+    // Proactive resource discovery: Search for relevant resources based on initial user query
+    // This ensures resources are available even when LLM doesn't call tools
+    const initialDiscoveredResources = await this.resourceDiscovery.discoverRelevantResources(
+      messages,
+      [], // No tool results yet, just use user message
+      { topK: 2, minScore: 0.15 }
+    );
+    
+    if (initialDiscoveredResources.length > 0) {
+      console.log('🔍 Proactively discovered resources for initial query:', initialDiscoveredResources);
+      // Load and inject these resources into context before first LLM call
+      const resourceContents = await this.resourceManager.loadResources(initialDiscoveredResources);
+      if (resourceContents.length > 0) {
+        const resourceContext = this.resourceManager.buildResourceContext(resourceContents);
+        // Append to existing system message (must be at the start)
+        if (messages[0]?.role === 'system') {
+          messages[0].content = resourceContext + '\n\n' + messages[0].content;
+          console.log(`✅ Injected ${resourceContents.length} resource(s) into initial context`);
+        }
+      }
+    }
+
     // Multi-turn tool calling loop (manual parsing)
     let maxIterations = 10;
     while (maxIterations-- > 0) {

@@ -153,9 +153,6 @@ serverSelect.addEventListener('change', () => {
   renderPromptCards();
 });
 
-// Trigger initial description
-serverSelect.dispatchEvent(new Event('change'));
-
 // ============================================================================
 // Prompt Inspiration Cards
 // ============================================================================
@@ -307,6 +304,9 @@ function renderPromptCards() {
     });
   });
 }
+
+// Trigger initial server selection to render prompt cards
+serverSelect.dispatchEvent(new Event('change'));
 
 chatInput.addEventListener('input', () => {
   // Auto-resize textarea

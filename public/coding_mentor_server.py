@@ -778,6 +778,374 @@ def validate_work_email(email):
             "text": json.dumps(DESIGN_PATTERNS, indent=2)
         }
 
+    def resource_mcp_protocol(self) -> str:
+        """Model Context Protocol (MCP) Tutorial - Learn MCP protocol, build MCP servers, tools, resources, and prompts. MCP tutorial for beginners and intermediate developers. Understand MCP architecture and best practices for creating AI-powered applications with MCP."""
+        return """# Model Context Protocol (MCP)
+
+## What is MCP?
+
+The **Model Context Protocol (MCP)** is an open protocol that enables seamless integration between AI applications and external data sources, tools, and services. It provides a standardized way for Language Learning Models (LLMs) to:
+
+- 🔧 **Execute tools** - Call functions to perform actions
+- 📚 **Access resources** - Retrieve documents, data, and context
+- 🎯 **Use prompts** - Apply pre-built workflows and templates
+
+## Core Concepts
+
+### 1. MCP Server
+
+An MCP server exposes capabilities (tools, resources, prompts) that LLMs can use:
+
+```python
+from mcp_core import McpServer, attach_pyodide_worker
+
+class MyService(McpServer):
+    def my_tool(self, param: str) -> dict:
+        \"\"\"Tool description that LLM sees\"\"\"
+        return {"result": f"Processed: {param}"}
+
+def boot():
+    svc = MyService()
+    attach_pyodide_worker(svc)
+```
+
+### 2. Tools (Functions)
+
+Tools are functions the LLM can call to perform actions:
+
+```python
+def calculate_bmi(self, weight_kg: float, height_cm: float) -> dict:
+    \"\"\"Calculate Body Mass Index (BMI)
+    
+    Args:
+        weight_kg: Weight in kilograms
+        height_cm: Height in centimeters
+    
+    Returns:
+        BMI value, category, and health advice
+    \"\"\"
+    height_m = height_cm / 100
+    bmi = weight_kg / (height_m ** 2)
+    
+    return {
+        "bmi": round(bmi, 1),
+        "category": "Normal" if 18.5 <= bmi < 25 else "Other"
+    }
+```
+
+**Best Practices:**
+- Use clear, descriptive function names
+- Add detailed docstrings (LLM reads them!)
+- Use type hints (Pydantic validation)
+- Return structured data (dict/list)
+- For enums, be explicit in docstrings about exact values
+
+### 3. Resources (Documents)
+
+Resources provide context and reference material:
+
+```python
+def resource_user_guide(self) -> str:
+    \"\"\"User Guide - Complete tutorial for beginners\"\"\"
+    return \"\"\"# User Guide
+    
+## Getting Started
+...
+\"\"\"
+
+def resource_config(self) -> dict:
+    \"\"\"Configuration settings in JSON format\"\"\"
+    return {
+        "mimeType": "application/json",
+        "text": json.dumps({"setting": "value"})
+    }
+```
+
+**Resource Discovery:**
+- Resources are semantically searched based on conversation context
+- Use keyword-rich descriptions (include: tutorial, guide, level, topics)
+- Resources are automatically injected when relevant
+
+**Naming Convention:** `resource_<name>` → URI: `res://<name>`
+
+### 4. Prompts (Workflows)
+
+Prompts are pre-built workflows with system instructions:
+
+```python
+def prompt_code_reviewer(self) -> dict:
+    \"\"\"Guide users through code review process\"\"\"
+    return {
+        "description": "Code review assistant",
+        "messages": [{
+            "role": "system",
+            "content": \"\"\"You are a code reviewer...
+            
+Process:
+1. Analyze functionality
+2. Check readability
+3. Assess maintainability
+...\"\"\"
+        }]
+    }
+```
+
+## MCP Architecture
+
+```
+┌─────────────────┐
+│   LLM Client    │ (WebLLM, Claude, GPT-4)
+│  (Your App)     │
+└────────┬────────┘
+         │
+         │ MCP Protocol (JSON-RPC)
+         │
+┌────────▼────────┐
+│   MCP Server    │ (Python, TypeScript)
+│                 │
+│  ┌───────────┐  │
+│  │  Tools    │  │ ← Functions LLM can call
+│  ├───────────┤  │
+│  │ Resources │  │ ← Context & documentation
+│  ├───────────┤  │
+│  │  Prompts  │  │ ← Workflow templates
+│  └───────────┘  │
+└─────────────────┘
+```
+
+## Building an MCP Server
+
+### Step 1: Define Your Service
+
+```python
+from typing import Literal
+from mcp_core import McpServer
+
+class WeatherService(McpServer):
+    pass  # Add methods below
+```
+
+### Step 2: Add Tools
+
+```python
+def get_weather(
+    self, 
+    city: str,
+    units: Literal["celsius", "fahrenheit"] = "celsius"
+) -> dict:
+    \"\"\"Get current weather for a city.
+    
+    IMPORTANT: units must be EXACTLY: "celsius" or "fahrenheit"
+    
+    Example: get_weather(city="London", units="celsius")
+    \"\"\"
+    # Simulate API call
+    return {
+        "city": city,
+        "temperature": 22,
+        "units": units,
+        "condition": "Sunny"
+    }
+```
+
+### Step 3: Add Resources
+
+```python
+def resource_weather_guide(self) -> str:
+    \"\"\"Weather API Guide - Tutorial on using weather tools and understanding forecasts\"\"\"
+    return \"\"\"# Weather API Guide
+    
+## Available Cities
+- London, Paris, Tokyo, New York
+...\"\"\"
+```
+
+### Step 4: Add Prompts
+
+```python
+def prompt_weather_advisor(self) -> dict:
+    \"\"\"Weather advisory assistant\"\"\"
+    return {
+        "description": "Personalized weather advice",
+        "messages": [{
+            "role": "system",
+            "content": \"\"\"Provide weather advice including:
+1. Current conditions
+2. Clothing suggestions
+3. Activity recommendations
+Use get_weather tool to fetch data.\"\"\"
+        }]
+    }
+```
+
+### Step 5: Boot the Server
+
+```python
+def boot():
+    svc = WeatherService()
+    attach_pyodide_worker(svc)
+```
+
+## MCP Best Practices
+
+### Tool Design
+
+✅ **DO:**
+- Use descriptive names: `calculate_bmi` not `calc`
+- Include detailed docstrings with examples
+- List exact enum values in docstring
+- Return structured data
+- Handle errors gracefully
+
+❌ **DON'T:**
+- Return error messages as `[{"message": "not found"}]`
+- Use ambiguous parameter names
+- Forget type hints
+- Return empty error objects
+
+### Resource Design
+
+✅ **DO:**
+- Use keyword-rich descriptions
+- Include level keywords: "beginner", "intermediate", "advanced"
+- Include format: "tutorial", "guide", "reference"
+- Add topic keywords users might search for
+- Use markdown for readability
+
+❌ **DON'T:**
+- Use minimal descriptions
+- Forget to include searchable keywords
+- Mix multiple unrelated topics
+
+### Prompt Design
+
+✅ **DO:**
+- Provide clear step-by-step workflows
+- Reference available tools/resources
+- Give examples of usage
+- Set clear expectations
+
+❌ **DON'T:**
+- Make prompts too generic
+- Forget to mention relevant tools
+
+## Error Handling
+
+```python
+def divide(self, a: float, b: float) -> dict:
+    \"\"\"Divide two numbers\"\"\"
+    if b == 0:
+        return {"error": "Cannot divide by zero"}
+    
+    return {"result": a / b}
+```
+
+## Type Validation with Pydantic
+
+MCP automatically validates parameters using Pydantic:
+
+```python
+from typing import Literal
+
+def search(
+    self,
+    query: str,  # Required
+    limit: int = 10,  # Optional with default
+    sort: Literal["date", "relevance"] = "relevance"  # Enum
+) -> list[dict]:
+    \"\"\"Search with parameters.
+    
+    CRITICAL: sort must be EXACTLY "date" or "relevance" (not "by_date")
+    \"\"\"
+    # Pydantic validates automatically!
+    # If user passes invalid values, error is returned
+    return [{"title": "Result 1"}]
+```
+
+## Real-World Example: Fitness Tracker
+
+```python
+class FitnessService(McpServer):
+    
+    # Tool: Calculate BMI
+    def calculate_bmi(self, weight_kg: float, height_cm: float) -> dict:
+        \"\"\"Calculate Body Mass Index\"\"\"
+        height_m = height_cm / 100
+        bmi = weight_kg / (height_m ** 2)
+        return {"bmi": round(bmi, 1)}
+    
+    # Resource: Workout programs
+    def resource_workout_guide(self) -> str:
+        \"\"\"Workout Guide - Exercise routines and fitness tips\"\"\"
+        return "# Workout Guide\\n\\n## Programs\\n..."
+    
+    # Prompt: Personal trainer
+    def prompt_personal_trainer(self) -> dict:
+        \"\"\"AI personal trainer workflow\"\"\"
+        return {
+            "description": "Personalized fitness coaching",
+            "messages": [{
+                "role": "system",
+                "content": "You are a personal trainer..."
+            }]
+        }
+```
+
+## Testing Your MCP Server
+
+1. **Start the server** - Run your Python file
+2. **Connect LLM client** - Point your app to the server
+3. **List tools** - Check available capabilities
+4. **Call tools** - Test function execution
+5. **Query resources** - Verify resource discovery
+6. **Use prompts** - Test workflows
+
+## Common Patterns
+
+### Search/Filter Pattern
+```python
+def find_items(
+    self,
+    category: str,
+    min_price: float = 0
+) -> list[dict]:
+    \"\"\"Find items by category and price\"\"\"
+    results = []
+    for item in DATABASE:
+        if item['category'] == category and item['price'] >= min_price:
+            results.append(item)
+    return results
+```
+
+### CRUD Pattern
+```python
+def create_task(self, title: str, priority: int) -> dict:
+    \"\"\"Create new task\"\"\"
+    task = {"id": generate_id(), "title": title, "priority": priority}
+    TASKS.append(task)
+    return task
+
+def get_task(self, task_id: str) -> dict:
+    \"\"\"Get task by ID\"\"\"
+    return next((t for t in TASKS if t['id'] == task_id), None)
+```
+
+## Learn More
+
+- MCP Specification: https://modelcontextprotocol.io
+- Example Servers: Check the `public/` directory
+- PyMCP Documentation: See README.md
+
+## Summary
+
+MCP enables LLMs to:
+- **Execute actions** via tools
+- **Access knowledge** via resources
+- **Follow workflows** via prompts
+
+Build powerful AI applications by exposing your services through MCP! 🚀
+"""
+
     # ===== PROMPTS (Learning Workflows) =====
 
     def prompt_code_reviewer(self) -> dict:

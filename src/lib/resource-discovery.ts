@@ -25,7 +25,17 @@ function computeSimpleEmbedding(text: string): Map<string, number> {
   const words = text.toLowerCase()
     .replace(/[^\w\s]/g, ' ')
     .split(/\s+/)
-    .filter(w => w.length > 3); // Ignore short words
+    .filter(w => {
+      // Keep words longer than 3 characters
+      if (w.length > 3) return true;
+      // Keep all-caps acronyms (like MCP, API, SQL)
+      const originalWord = text.split(/\s+/).find(orig => orig.toLowerCase() === w);
+      if (originalWord && originalWord === originalWord.toUpperCase() && w.length >= 2) return true;
+      // Keep important short words
+      const importantShort = ['api', 'sql', 'cli', 'mcp', 'llm', 'rag', 'ui', 'ux'];
+      if (importantShort.includes(w)) return true;
+      return false;
+    });
   
   const frequency = new Map<string, number>();
   
