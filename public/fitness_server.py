@@ -328,16 +328,26 @@ class FitnessService(McpServer):
             )
 
             for ex in exercise_list:
-                exercise_info = {
-                    "name": ex["name"],
-                    "sets": ex.get("sets", "N/A"),
-                    "reps": ex.get("reps", ex.get("duration", "N/A")),
-                    "rest": ex.get("rest", "N/A")
-                }
-                # Add benefit for yoga poses
-                if "benefit" in ex:
-                    exercise_info["benefit"] = ex["benefit"]
-
+                # Handle both string and dict formats
+                if isinstance(ex, str):
+                    # Simple string format (like HIIT exercises)
+                    exercise_info = {
+                        "name": ex,
+                        "sets": "N/A",
+                        "reps": "N/A",
+                        "rest": "N/A"
+                    }
+                else:
+                    # Dictionary format (like strength training)
+                    exercise_info = {
+                        "name": ex["name"],
+                        "sets": ex.get("sets", "N/A"),
+                        "reps": ex.get("reps", ex.get("duration", "N/A")),
+                        "rest": ex.get("rest", "N/A")
+                    }
+                    # Add benefit for yoga poses
+                    if "benefit" in ex:
+                        exercise_info["benefit"] = ex["benefit"]
                 exercises.append(exercise_info)
 
             formatted_workouts[day_id] = {
