@@ -3,60 +3,148 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>MCP Pyodide Template</title>
-    <style>
-      body { font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, Apple Color Emoji, Segoe UI Emoji; padding: 2rem; }
-      button { padding: .6rem 1rem; margin-right: .5rem; margin-bottom: .5rem; }
-      select, input { padding: .5rem; margin-right: .5rem; }
-      pre { background: #111; color: #0f0; padding: 1rem; max-height: 40vh; overflow: auto; }
-      .log { white-space: pre-wrap; }
-      .config-section { margin-bottom: 1rem; padding: 1rem; border: 1px solid #ddd; border-radius: 4px; }
-      .config-section h3 { margin-top: 0; }
-      .button-group { margin-top: 1rem; }
-    </style>
+    <title>WebLLM Chat Agent with MCP</title>
   </head>
   <body>
-    <h1>MCP over Pyodide (Python) ⇄ TypeScript</h1>
-    <p>This demo loads a Python class in a Web Worker with Pyodide and exposes its methods as JSON‑RPC tools, resources, and prompts.</p>
-    
-    <div class="config-section">
-      <h3>Configuration</h3>
-      <div>
-        <label>Pyodide indexURL (CDN):</label><br>
-        <input id="idx" style="width: 50rem" value="https://cdn.jsdelivr.net/pyodide/v0.26.4/full/" />
-      </div>
-      <div style="margin-top: 1rem;">
-        <label>Server Source:</label><br>
-        <select id="serverSelect">
-          <option value="embedded">Embedded (default)</option>
-          <option value="example">Example Remote Server</option>
-          <option value="url">Custom URL</option>
-        </select>
-        <input id="serverUrl" placeholder="https://example.com/my_server.py" style="width: 30rem; display: none;" />
-      </div>
-      <div style="margin-top: 1rem;">
-        <button id="boot">Boot Pyodide</button>
+    <div id="app">
+      <!-- Header -->
+      <header class="app-header">
+        <div class="header-content">
+          <h1>🤖 WebLLM Chat Agent</h1>
+          <div class="header-status">
+            <span id="model-status" class="status-badge">Not loaded</span>
+            <span id="tools-status" class="status-badge">0 tools</span>
+            <span id="capabilities-status" class="status-badge">Detecting...</span>
+          </div>
+        </div>
+      </header>
+
+      <!-- Main Content -->
+      <div class="app-container">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+          <div class="sidebar-section">
+            <h3>🤖 Model</h3>
+            <select id="model-select" class="model-select">
+              <option value="">Loading models...</option>
+            </select>
+            <div id="model-description" class="model-description" style="margin: 10px 0; padding: 10px; background: var(--bg-tertiary); border-radius: 4px; font-size: 0.875rem; display: none;">
+            </div>
+            <div id="wllama-config" class="wllama-config" style="display: none; margin: 10px 0; padding: 10px; background: var(--bg-tertiary); border-radius: 4px;">
+              <h4 style="margin: 0 0 8px 0; font-size: 0.875rem;">wllama Configuration</h4>
+              <label style="display: block; margin-bottom: 8px;">
+                <input type="checkbox" id="wllama-multithread" checked />
+                Multi-threading (faster, requires CORS headers)
+              </label>
+              <label style="display: block;">
+                Threads: <span id="wllama-threads-value">4</span>
+                <input type="range" id="wllama-threads" min="1" max="8" value="4" style="width: 100%; margin-top: 4px;" />
+              </label>
+            </div>
+            <button id="load-model-btn" class="primary-btn" disabled>Load Model</button>
+            <div id="model-progress" class="progress-container" style="display: none;">
+              <div class="progress-bar">
+                <div id="progress-fill" class="progress-fill"></div>
+              </div>
+              <p id="progress-text" class="progress-text">Loading...</p>
+            </div>
+          </div>
+
+          <div class="sidebar-section">
+            <h3>🔧 MCP Server</h3>
+            <select id="server-select">
+              <option value="embedded">📝 Demo Server (Basic Tools)</option>
+              <option value="chef">👨‍🍳 Chef Server (Cooking)</option>
+              <option value="fitness">🏋️ Fitness Trainer</option>
+              <option value="coding">💻 Coding Mentor</option>
+              <option value="example">Example Server</option>
+              <option value="clean">Clean API</option>
+              <option value="url">Custom URL</option>
+            </select>
+            <div id="server-description" style="margin: 8px 0; padding: 8px; background: var(--bg-tertiary); border-radius: 4px; font-size: 0.75rem; display: none;"></div>
+            <input id="server-url" type="text" placeholder="https://..." style="display: none;" />
+            <input id="pyodide-url" type="text" 
+                   value="https://cdn.jsdelivr.net/pyodide/v0.26.4/full/" 
+                   placeholder="Pyodide CDN URL" />
+            <button id="boot-mcp-btn" class="primary-btn">Boot MCP Server</button>
+          </div>
+
+          <div class="sidebar-section">
+            <h3>📚 Available Tools</h3>
+            <div id="tools-list" class="tools-list">
+              <p class="muted">No tools loaded</p>
+            </div>
+            <button id="refresh-tools-btn" class="secondary-btn">Refresh</button>
+          </div>
+
+          <div class="sidebar-section">
+            <h3>⚙️ Settings</h3>
+            <label>
+              <input type="checkbox" id="auto-scroll" checked />
+              Auto-scroll
+            </label>
+            <label>
+              <input type="checkbox" id="stream-response" />
+              Stream responses
+            </label>
+            <label style="display: block; margin-top: 12px;">
+              Temperature: <span id="temperature-value">0.7</span>
+              <input type="range" id="temperature-slider" min="0" max="2" step="0.1" value="0.7" style="width: 100%; margin-top: 4px;" />
+              <small style="display: block; color: var(--text-secondary); font-size: 0.75rem; margin-top: 2px;">
+                Lower = focused, Higher = creative
+              </small>
+            </label>
+            <button id="clear-chat-btn" class="danger-btn">Clear Chat</button>
+          </div>
+        </aside>
+
+        <!-- Chat Area -->
+        <main class="chat-main">
+          <!-- Prompt Inspiration Cards -->
+          <div id="prompt-cards-container" class="prompt-cards-container" style="display: none;">
+            <div class="prompt-cards-header">
+              <h3>💡 Get Inspired</h3>
+              <p>Click a card to try it out</p>
+            </div>
+            <div id="prompt-cards" class="prompt-cards">
+              <!-- Cards will be inserted here -->
+            </div>
+          </div>
+          
+          <div id="chat-messages" class="chat-messages">
+            <!-- Messages will be inserted here -->
+            <div class="welcome-message">
+              <h2>👋 Welcome to WebLLM Chat Agent</h2>
+              <p>This is a fully local, browser-based chat agent with MCP tool support.</p>
+              <ol>
+                <li>Select and load a model</li>
+                <li>Boot the MCP server (for tools)</li>
+                <li>Start chatting!</li>
+              </ol>
+            </div>
+          </div>
+
+          <!-- Input Area -->
+          <div class="chat-input-container">
+            <div class="chat-input-wrapper">
+              <textarea 
+                id="chat-input" 
+                class="chat-input" 
+                placeholder="Type your message... (Shift+Enter for new line)"
+                rows="1"
+              ></textarea>
+              <div class="chat-input-actions">
+                <button id="stop-btn" class="stop-btn" style="display: none;">⏹ Stop</button>
+                <button id="send-btn" class="send-btn" disabled>
+                  <span>Send</span>
+                  <kbd>Enter</kbd>
+                </button>
+              </div>
+            </div>
+          </div>
+        </main>
       </div>
     </div>
-
-    <div class="config-section">
-      <h3>MCP Operations</h3>
-      <div class="button-group">
-        <strong>Discovery:</strong><br>
-        <button id="list">List Tools</button>
-        <button id="listResources">List Resources</button>
-        <button id="listPrompts">List Prompts</button>
-      </div>
-      <div class="button-group">
-        <strong>Sample Tools:</strong><br>
-        <button id="echo">echo('hello', upper=True)</button>
-        <button id="add">add(1.5, 2.25)</button>
-        <button id="get">get_item(7)</button>
-      </div>
-    </div>
-
-    <h3>Output</h3>
-    <pre class="log" id="log"></pre>
 
     <script type="module" src="/src/main.ts"></script>
   </body>

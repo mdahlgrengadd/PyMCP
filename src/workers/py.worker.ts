@@ -3,6 +3,7 @@
 
 import mcpCoreSrc from '../py/mcp_core.py?raw';
 import myServerSrc from '../py/my_server.py?raw';
+import pymcpSrc from '../../public/pymcp.py?raw';
 
 declare const self: DedicatedWorkerGlobalScope;
 
@@ -41,8 +42,9 @@ self.onmessage = async (e: MessageEvent) => {
       await pyodide.runPythonAsync('import micropip; await micropip.install("pydantic==2.*")');
     }
 
-    // Write the core MCP framework
+    // Write the core MCP framework files
     pyodide.FS.writeFile('mcp_core.py', mcpCoreSrc);
+    pyodide.FS.writeFile('pymcp.py', pymcpSrc);
 
     let serverCode: string;
     let bootCode: string;
@@ -63,30 +65,59 @@ self.onmessage = async (e: MessageEvent) => {
         
         pyodide.FS.writeFile(filename, serverCode);
         
-        // Try to detect the boot function or server class
+        // Try to detect and run the server (multiple patterns)
         bootCode = `
+# Try different initialization patterns
 try:
+    # Pattern 1: Traditional boot() function
     from ${moduleName} import boot
     boot()
 except ImportError:
     try:
-        from ${moduleName} import *
-        # Look for a class that inherits from McpServer
-        import inspect
-        from mcp_core import McpServer
-        server_class = None
-        for name, obj in globals().items():
-            if inspect.isclass(obj) and issubclass(obj, McpServer) and obj != McpServer:
-                server_class = obj
-                break
-        if server_class:
-            svc = server_class()
-            from mcp_core import attach_pyodide_worker
-            attach_pyodide_worker(svc)
-        else:
-            raise RuntimeError("No MCP server class found in remote module")
-    except Exception as e:
-        raise RuntimeError(f"Failed to initialize server from {serverUrl}: {e}")
+        # Pattern 2: Look for if __name__ == "__main__" pattern or serve() calls
+        exec(open('${filename}').read())
+    except Exception as e1:
+        try:
+            # Pattern 3: Auto-detect Server classes and instantiate
+            from ${moduleName} import *
+            import inspect
+            
+            # Try to find serve() function and Server class
+            server_class = None
+            serve_func = None
+            
+            for name, obj in globals().items():
+                if name.startswith('_'):
+                    continue
+                if inspect.isclass(obj):
+                    # Look for classes that might inherit from Server or McpServer
+                    mro_names = [cls.__name__ for cls in obj.__mro__]
+                    if 'Server' in mro_names or 'McpServer' in mro_names:
+                        server_class = obj
+                elif callable(obj) and name == 'serve':
+                    serve_func = obj
+            
+            if server_class and serve_func:
+                # Use the clean API pattern
+                svc = server_class()
+                serve_func(svc)
+            elif server_class:
+                # Fallback to direct instantiation + attach
+                svc = server_class()
+                try:
+                    from mcp_core import attach_pyodide_worker
+                    attach_pyodide_worker(svc)
+                except:
+                    # Maybe it's using pymcp serve
+                    try:
+                        from pymcp import serve
+                        serve(svc)
+                    except:
+                        raise RuntimeError("Could not attach server")
+            else:
+                raise RuntimeError("No compatible server class found")
+        except Exception as e2:
+            raise RuntimeError(f"Failed to initialize server: {e1}, then {e2}")
         `;
       } catch (error: any) {
         console.error('Failed to load remote server:', error);
