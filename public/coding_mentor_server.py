@@ -488,12 +488,27 @@ class CodingMentorService(McpServer):
         """Find learning resources by topic and level"""
 
         results = []
-        topic_lower = topic.lower()
+        # Normalize topic: convert hyphens/underscores to slashes for better matching
+        topic_normalized = topic.lower().replace('-', '/').replace('_', '/')
 
         for tutorial_id, tutorial in TUTORIALS.items():
-            if (tutorial['level'] == level and
-                (topic_lower in tutorial['title'].lower() or
-                 any(topic_lower in t for t in tutorial['topics']))):
+            # Normalize tutorial data for comparison
+            title_normalized = tutorial['title'].lower().replace(
+                '-', '/').replace('_', '/')
+            topics_normalized = [t.lower().replace(
+                '-', '/').replace('_', '/') for t in tutorial['topics']]
+
+            # Check if topic matches title or any topic tag
+            topic_match = (
+                topic_normalized in title_normalized or
+                any(topic_normalized in t for t in topics_normalized)
+            )
+
+            # Flexible level matching: exact match OR "all levels"
+            level_match = (tutorial['level'] ==
+                           level or tutorial['level'] == "all levels")
+
+            if topic_match and level_match:
                 results.append({
                     "title": tutorial['title'],
                     "resource_uri": f"res://{tutorial_id}",
@@ -501,7 +516,9 @@ class CodingMentorService(McpServer):
                     "topics": tutorial['topics']
                 })
 
-        return results if results else [{"message": f"No tutorials found for '{topic}' at {level} level"}]
+        # Return empty array instead of error message object
+        # This prevents polluting semantic search with negative context
+        return results
 
     def explain_pattern(self, pattern_name: str) -> dict:
         """Get information about a design pattern"""

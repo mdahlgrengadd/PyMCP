@@ -73,6 +73,17 @@ function extractToolResultText(toolResults: any[]): string {
     }
     
     if (typeof result === 'object' && result !== null) {
+      // Skip error messages and empty result indicators
+      // These pollute semantic search with negative context
+      if (result.message && (
+        result.message.toLowerCase().includes('not found') ||
+        result.message.toLowerCase().includes('no ') ||
+        result.message.toLowerCase().includes('not available') ||
+        result.message.toLowerCase().includes('error')
+      )) {
+        continue;  // Skip negative results
+      }
+      
       // Extract common fields
       if (result.name) texts.push(result.name);
       if (result.title) texts.push(result.title);
