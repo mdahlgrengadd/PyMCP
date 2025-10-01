@@ -279,6 +279,367 @@ RECIPES = {
             "Serve immediately"
         ],
         "tags": ["Mexican", "tacos", "beef", "quick", "easy", "family-friendly"]
+    },
+
+    # Italian Recipes
+    "spaghetti_carbonara": {
+        "name": "Classic Spaghetti Carbonara",
+        "category": "Italian",
+        "dietary": ["vegetarian"],
+        "prep_time": 10,
+        "cook_time": 15,
+        "servings": 4,
+        "difficulty": "medium",
+        "ingredients": [
+            "1 lb spaghetti",
+            "6 large eggs",
+            "1 cup grated Pecorino Romano cheese",
+            "8 oz pancetta, diced",
+            "4 cloves garlic, minced",
+            "1/2 cup pasta water",
+            "Black pepper, freshly ground",
+            "Salt to taste"
+        ],
+        "instructions": [
+            "Cook spaghetti according to package directions, reserving 1 cup pasta water",
+            "In a bowl, whisk eggs with grated cheese and black pepper",
+            "Cook pancetta in large skillet until crispy, add garlic",
+            "Add hot pasta to skillet with pancetta",
+            "Remove from heat, quickly stir in egg mixture",
+            "Add pasta water gradually while stirring to create creamy sauce",
+            "Serve immediately with extra cheese and black pepper"
+        ],
+        "tags": ["Italian", "pasta", "carbonara", "quick", "comfort-food"]
+    },
+    "risotto_milanese": {
+        "name": "Risotto alla Milanese",
+        "category": "Italian",
+        "dietary": ["vegetarian", "gluten-free"],
+        "prep_time": 15,
+        "cook_time": 25,
+        "servings": 4,
+        "difficulty": "medium",
+        "ingredients": [
+            "1.5 cups Arborio rice",
+            "4 cups warm chicken or vegetable broth",
+            "1/2 cup dry white wine",
+            "1 large onion, finely diced",
+            "1/2 tsp saffron threads",
+            "1/2 cup grated Parmesan cheese",
+            "3 tbsp butter",
+            "2 tbsp olive oil",
+            "Salt and white pepper to taste"
+        ],
+        "instructions": [
+            "Soak saffron in 2 tbsp warm broth for 10 minutes",
+            "Sauté onion in butter and oil until translucent",
+            "Add rice, stir for 2 minutes until edges are translucent",
+            "Add wine, stir until absorbed",
+            "Add broth 1/2 cup at a time, stirring constantly",
+            "After 15 minutes, add saffron mixture",
+            "Continue adding broth until rice is creamy and al dente",
+            "Stir in Parmesan cheese, season with salt and pepper"
+        ],
+        "tags": ["Italian", "risotto", "saffron", "Milanese", "elegant"]
+    },
+    "caprese_salad": {
+        "name": "Caprese Salad",
+        "category": "Italian",
+        "dietary": ["vegetarian", "gluten-free", "dairy-free"],
+        "prep_time": 10,
+        "cook_time": 0,
+        "servings": 4,
+        "difficulty": "easy",
+        "ingredients": [
+            "4 large ripe tomatoes, sliced",
+            "1 lb fresh mozzarella, sliced",
+            "1/2 cup fresh basil leaves",
+            "1/4 cup extra virgin olive oil",
+            "2 tbsp balsamic vinegar",
+            "Salt and black pepper to taste"
+        ],
+        "instructions": [
+            "Arrange tomato and mozzarella slices alternately on serving platter",
+            "Tuck fresh basil leaves between slices",
+            "Drizzle with olive oil and balsamic vinegar",
+            "Season with salt and freshly ground black pepper",
+            "Serve immediately at room temperature"
+        ],
+        "tags": ["Italian", "salad", "fresh", "no-cook", "summer"]
+    },
+
+    # French Recipes
+    "coq_au_vin": {
+        "name": "Coq au Vin",
+        "category": "French",
+        "dietary": ["gluten-free"],
+        "prep_time": 30,
+        "cook_time": 90,
+        "servings": 6,
+        "difficulty": "hard",
+        "ingredients": [
+            "3 lbs chicken pieces (thighs and drumsticks)",
+            "1 bottle dry red wine",
+            "8 oz bacon, diced",
+            "1 lb pearl onions, peeled",
+            "1 lb mushrooms, quartered",
+            "4 cloves garlic, minced",
+            "2 tbsp tomato paste",
+            "2 cups chicken broth",
+            "Fresh thyme and bay leaves",
+            "Salt and pepper to taste"
+        ],
+        "instructions": [
+            "Marinate chicken in wine with herbs for 2 hours",
+            "Cook bacon until crispy, remove and set aside",
+            "Brown chicken pieces in bacon fat",
+            "Add onions and mushrooms, cook until golden",
+            "Add garlic, tomato paste, and marinating liquid",
+            "Simmer covered for 1 hour until chicken is tender",
+            "Return bacon to pot, season and serve"
+        ],
+        "tags": ["French", "wine", "braised", "classic", "elegant"]
+    },
+    "ratatouille": {
+        "name": "Ratatouille",
+        "category": "French",
+        "dietary": ["vegan", "vegetarian", "gluten-free"],
+        "prep_time": 20,
+        "cook_time": 45,
+        "servings": 6,
+        "difficulty": "medium",
+        "ingredients": [
+            "2 eggplants, diced",
+            "2 zucchini, diced",
+            "2 yellow squash, diced",
+            "2 bell peppers, diced",
+            "1 large onion, diced",
+            "4 tomatoes, diced",
+            "6 cloves garlic, minced",
+            "1/4 cup olive oil",
+            "Fresh basil and thyme",
+            "Salt and pepper to taste"
+        ],
+        "instructions": [
+            "Salt eggplant and let drain for 30 minutes",
+            "Sauté onions and garlic until soft",
+            "Add peppers, cook for 5 minutes",
+            "Add eggplant, zucchini, and squash",
+            "Cook covered for 20 minutes",
+            "Add tomatoes and herbs",
+            "Simmer uncovered for 15 minutes",
+            "Season and serve warm or cold"
+        ],
+        "tags": ["French", "vegetables", "Provençal", "healthy", "colorful"]
+    },
+    "quiche_lorraine": {
+        "name": "Quiche Lorraine",
+        "category": "French",
+        "dietary": ["vegetarian"],
+        "prep_time": 25,
+        "cook_time": 45,
+        "servings": 8,
+        "difficulty": "medium",
+        "ingredients": [
+            "1 pie crust (9-inch)",
+            "8 oz bacon, diced",
+            "1 cup heavy cream",
+            "4 large eggs",
+            "1 cup grated Gruyère cheese",
+            "1/2 tsp nutmeg",
+            "Salt and white pepper to taste"
+        ],
+        "instructions": [
+            "Preheat oven to 375°F",
+            "Blind bake pie crust for 10 minutes",
+            "Cook bacon until crispy, drain",
+            "Whisk eggs with cream, nutmeg, salt, and pepper",
+            "Sprinkle bacon and cheese in crust",
+            "Pour egg mixture over filling",
+            "Bake 35-40 minutes until set",
+            "Cool 10 minutes before serving"
+        ],
+        "tags": ["French", "quiche", "bacon", "brunch", "classic"]
+    },
+
+    # British Recipes
+    "fish_and_chips": {
+        "name": "Fish and Chips",
+        "category": "British",
+        "dietary": ["dairy-free"],
+        "prep_time": 30,
+        "cook_time": 20,
+        "servings": 4,
+        "difficulty": "medium",
+        "ingredients": [
+            "4 cod fillets (6 oz each)",
+            "4 large potatoes, cut into chips",
+            "1 cup all-purpose flour",
+            "1 cup beer",
+            "1 tsp baking powder",
+            "Salt and vinegar",
+            "Oil for deep frying"
+        ],
+        "instructions": [
+            "Cut potatoes into thick chips, soak in cold water",
+            "Make batter with flour, beer, and baking powder",
+            "Heat oil to 350°F",
+            "Fry chips until golden, drain and salt",
+            "Dip fish in batter, fry until golden",
+            "Serve with malt vinegar and mushy peas"
+        ],
+        "tags": ["British", "fried", "fish", "chips", "pub-food"]
+    },
+    "beef_wellington": {
+        "name": "Beef Wellington",
+        "category": "British",
+        "dietary": ["gluten-free"],
+        "prep_time": 60,
+        "cook_time": 45,
+        "servings": 8,
+        "difficulty": "hard",
+        "ingredients": [
+            "3 lb beef tenderloin",
+            "1 lb puff pastry",
+            "8 oz mushrooms, finely chopped",
+            "4 oz pâté",
+            "8 slices prosciutto",
+            "2 egg yolks",
+            "Dijon mustard",
+            "Salt and pepper to taste"
+        ],
+        "instructions": [
+            "Sear beef tenderloin on all sides",
+            "Brush with mustard, let cool",
+            "Sauté mushrooms until dry",
+            "Wrap beef in prosciutto and mushroom mixture",
+            "Wrap in puff pastry, seal edges",
+            "Brush with egg wash",
+            "Bake at 400°F for 25-30 minutes",
+            "Rest 10 minutes before slicing"
+        ],
+        "tags": ["British", "beef", "elegant", "special-occasion", "Gordon-Ramsay"]
+    },
+    "shepherds_pie": {
+        "name": "Shepherd's Pie",
+        "category": "British",
+        "dietary": ["vegetarian"],
+        "prep_time": 30,
+        "cook_time": 45,
+        "servings": 6,
+        "difficulty": "easy",
+        "ingredients": [
+            "2 lbs ground lamb",
+            "1 large onion, diced",
+            "2 carrots, diced",
+            "2 lbs potatoes, mashed",
+            "1 cup frozen peas",
+            "2 tbsp Worcestershire sauce",
+            "1 cup beef broth",
+            "Butter and milk for mash",
+            "Salt and pepper to taste"
+        ],
+        "instructions": [
+            "Brown lamb with onions and carrots",
+            "Add Worcestershire sauce and broth",
+            "Simmer until vegetables are tender",
+            "Add peas, season to taste",
+            "Top with mashed potatoes",
+            "Dot with butter",
+            "Bake at 400°F for 25 minutes",
+            "Broil until golden brown"
+        ],
+        "tags": ["British", "comfort-food", "lamb", "mashed-potatoes", "hearty"]
+    },
+
+    # Swedish Recipes
+    "gravlax": {
+        "name": "Gravlax (Cured Salmon)",
+        "category": "Swedish",
+        "dietary": ["gluten-free", "dairy-free"],
+        "prep_time": 20,
+        "cook_time": 0,
+        "servings": 8,
+        "difficulty": "easy",
+        "ingredients": [
+            "2 lbs fresh salmon fillet",
+            "1/2 cup salt",
+            "1/2 cup sugar",
+            "2 tbsp white pepper",
+            "1 large bunch fresh dill",
+            "Mustard sauce for serving"
+        ],
+        "instructions": [
+            "Mix salt, sugar, and pepper",
+            "Place salmon skin-side down",
+            "Cover with dill and salt mixture",
+            "Wrap tightly in plastic wrap",
+            "Refrigerate for 48-72 hours",
+            "Turn every 12 hours",
+            "Slice thinly and serve with mustard sauce"
+        ],
+        "tags": ["Swedish", "salmon", "cured", "Scandinavian", "appetizer"]
+    },
+    "meatballs_swedish": {
+        "name": "Swedish Meatballs",
+        "category": "Swedish",
+        "dietary": ["vegetarian"],
+        "prep_time": 25,
+        "cook_time": 30,
+        "servings": 6,
+        "difficulty": "medium",
+        "ingredients": [
+            "1 lb ground beef",
+            "1 lb ground pork",
+            "1/2 cup breadcrumbs",
+            "1/2 cup milk",
+            "1 egg",
+            "1 onion, finely grated",
+            "Allspice and nutmeg",
+            "Salt and pepper to taste",
+            "Cream sauce for serving"
+        ],
+        "instructions": [
+            "Soak breadcrumbs in milk",
+            "Mix meats with soaked breadcrumbs",
+            "Add egg, onion, and spices",
+            "Form into small meatballs",
+            "Brown in butter until cooked through",
+            "Make cream sauce in same pan",
+            "Return meatballs to sauce",
+            "Serve with lingonberry jam"
+        ],
+        "tags": ["Swedish", "meatballs", "comfort-food", "IKEA", "classic"]
+    },
+    "smorgasbord_salad": {
+        "name": "Smörgåsbord Salad",
+        "category": "Swedish",
+        "dietary": ["vegan", "vegetarian", "gluten-free"],
+        "prep_time": 15,
+        "cook_time": 0,
+        "servings": 6,
+        "difficulty": "easy",
+        "ingredients": [
+            "1 lb mixed greens",
+            "1 cucumber, sliced",
+            "1 cup cherry tomatoes",
+            "1/2 red onion, thinly sliced",
+            "1/2 cup pickled herring (optional)",
+            "1/4 cup dill",
+            "Swedish vinaigrette",
+            "Salt and pepper to taste"
+        ],
+        "instructions": [
+            "Wash and dry mixed greens",
+            "Arrange greens on large platter",
+            "Top with cucumber and tomatoes",
+            "Add red onion slices",
+            "Garnish with dill",
+            "Drizzle with Swedish vinaigrette",
+            "Add pickled herring if desired",
+            "Serve immediately"
+        ],
+        "tags": ["Swedish", "salad", "fresh", "Scandinavian", "healthy"]
     }
 }
 
@@ -323,8 +684,8 @@ class ChefService(McpServer):
                 "original": f"{amount} {from_unit}",
                 "converted": f"{round(result, 2)} {to_unit}"
             }
-        except Exception as e:
-            return {"error": str(e)}
+        except (ValueError, ZeroDivisionError, KeyError) as e:
+            return {"error": f"Conversion error: {str(e)}"}
 
     def substitute_ingredient(self, ingredient: str, reason: str = "general") -> dict:
         """Find substitutes for ingredients based on dietary restrictions or availability"""
@@ -497,12 +858,10 @@ class ChefService(McpServer):
 
         # Find recipe by name
         recipe: Dict[str, Any] | None = None
-        recipe_id: str | None = None
-        for rid, r in RECIPES.items():
+        for _, r in RECIPES.items():
             name = str(r.get('name', ''))
             if recipe_name.lower() in name.lower():
                 recipe = r
-                recipe_id = rid
                 break
 
         if not recipe:
@@ -772,6 +1131,106 @@ class ChefService(McpServer):
 - Opening oven door too frequently
 - Not letting pan heat up enough
 """
+
+    # Italian Recipe Resources
+    def resource_spaghetti_carbonara(self) -> dict:
+        """Classic Spaghetti Carbonara - Traditional Roman pasta dish"""
+        recipe = RECIPES["spaghetti_carbonara"]
+        return {
+            "mimeType": "application/json",
+            "text": json.dumps(recipe, indent=2)
+        }
+
+    def resource_risotto_milanese(self) -> dict:
+        """Risotto alla Milanese - Creamy saffron risotto from Milan"""
+        recipe = RECIPES["risotto_milanese"]
+        return {
+            "mimeType": "application/json",
+            "text": json.dumps(recipe, indent=2)
+        }
+
+    def resource_caprese_salad(self) -> dict:
+        """Caprese Salad - Fresh Italian tomato and mozzarella salad"""
+        recipe = RECIPES["caprese_salad"]
+        return {
+            "mimeType": "application/json",
+            "text": json.dumps(recipe, indent=2)
+        }
+
+    # French Recipe Resources
+    def resource_coq_au_vin(self) -> dict:
+        """Coq au Vin - Classic French chicken braised in wine"""
+        recipe = RECIPES["coq_au_vin"]
+        return {
+            "mimeType": "application/json",
+            "text": json.dumps(recipe, indent=2)
+        }
+
+    def resource_ratatouille(self) -> dict:
+        """Ratatouille - Provençal vegetable stew"""
+        recipe = RECIPES["ratatouille"]
+        return {
+            "mimeType": "application/json",
+            "text": json.dumps(recipe, indent=2)
+        }
+
+    def resource_quiche_lorraine(self) -> dict:
+        """Quiche Lorraine - Traditional French bacon and cheese quiche"""
+        recipe = RECIPES["quiche_lorraine"]
+        return {
+            "mimeType": "application/json",
+            "text": json.dumps(recipe, indent=2)
+        }
+
+    # British Recipe Resources
+    def resource_fish_and_chips(self) -> dict:
+        """Fish and Chips - Classic British pub food"""
+        recipe = RECIPES["fish_and_chips"]
+        return {
+            "mimeType": "application/json",
+            "text": json.dumps(recipe, indent=2)
+        }
+
+    def resource_beef_wellington(self) -> dict:
+        """Beef Wellington - Elegant British beef wrapped in pastry"""
+        recipe = RECIPES["beef_wellington"]
+        return {
+            "mimeType": "application/json",
+            "text": json.dumps(recipe, indent=2)
+        }
+
+    def resource_shepherds_pie(self) -> dict:
+        """Shepherd's Pie - Traditional British comfort food"""
+        recipe = RECIPES["shepherds_pie"]
+        return {
+            "mimeType": "application/json",
+            "text": json.dumps(recipe, indent=2)
+        }
+
+    # Swedish Recipe Resources
+    def resource_gravlax(self) -> dict:
+        """Gravlax - Traditional Swedish cured salmon"""
+        recipe = RECIPES["gravlax"]
+        return {
+            "mimeType": "application/json",
+            "text": json.dumps(recipe, indent=2)
+        }
+
+    def resource_meatballs_swedish(self) -> dict:
+        """Swedish Meatballs - Classic Scandinavian comfort food"""
+        recipe = RECIPES["meatballs_swedish"]
+        return {
+            "mimeType": "application/json",
+            "text": json.dumps(recipe, indent=2)
+        }
+
+    def resource_smorgasbord_salad(self) -> dict:
+        """Smörgåsbord Salad - Fresh Swedish mixed greens salad"""
+        recipe = RECIPES["smorgasbord_salad"]
+        return {
+            "mimeType": "application/json",
+            "text": json.dumps(recipe, indent=2)
+        }
 
     # ===== PROMPTS (Cooking Workflows) =====
 
