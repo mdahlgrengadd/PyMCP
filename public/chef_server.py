@@ -8,11 +8,16 @@ Features:
 - 🔍 SEMANTIC SEARCH: Auto-select recipes based on conversation context
 """
 
-from typing import Annotated, Literal, Optional
-from pydantic import BaseModel, Field
-from mcp_core import McpServer, attach_pyodide_worker
+from typing import Literal, Any, Dict, List
+try:
+    from mcp_core import McpServer, attach_pyodide_worker  # type: ignore
+except ImportError:
+    class McpServer:  # type: ignore
+        pass
+
+    def attach_pyodide_worker(_svc: object) -> None:  # type: ignore
+        pass
 import json
-import math
 
 # ============================================================================
 # Recipe Database (would be loaded from files in production)
@@ -210,59 +215,6 @@ RECIPES = {
         ],
         "tags": ["Mexican", "tacos", "beef", "quick", "easy", "family-friendly"]
     }
-}
-
-
-# ============================================================================
-# Simple Embedding & Vector Search (using cosine similarity)
-# ============================================================================
-
-def simple_tokenize(text: str) -> list[str]:
-    """Simple tokenization for embedding"""
-    return text.lower().split()
-
-
-def compute_embedding(text: str) -> list[float]:
-    """
-    Simple embedding using word frequency (TF-IDF-like)
-    In production, use actual embeddings from LLM
-    """
-    words = simple_tokenize(text)
-    word_freq = {}
-    for word in words:
-        word_freq[word] = word_freq.get(word, 0) + 1
-
-    # Create a simple 50-dimension embedding based on word hashes
-    embedding = [0.0] * 50
-    for word, freq in word_freq.items():
-        idx = hash(word) % 50
-        embedding[idx] += freq * 0.1
-
-    # Normalize
-    magnitude = math.sqrt(sum(x * x for x in embedding))
-    if magnitude > 0:
-        embedding = [x / magnitude for x in embedding]
-
-    return embedding
-
-
-def cosine_similarity(vec1: list[float], vec2: list[float]) -> float:
-    """Compute cosine similarity between two vectors"""
-    dot_product = sum(a * b for a, b in zip(vec1, vec2))
-    return dot_product
-
-
-def get_recipe_embedding(recipe_id: str) -> list[float]:
-    """Get embedding for a recipe based on its content"""
-    recipe = RECIPES[recipe_id]
-    text = f"{recipe['name']} {recipe['category']} {' '.join(recipe['tags'])} {' '.join(recipe['ingredients'][:5])}"
-    return compute_embedding(text)
-
-
-# Precompute recipe embeddings
-RECIPE_EMBEDDINGS = {
-    recipe_id: get_recipe_embedding(recipe_id)
-    for recipe_id in RECIPES.keys()
 }
 
 
@@ -479,10 +431,11 @@ class ChefService(McpServer):
         """Scale a recipe to a different number of servings"""
 
         # Find recipe by name
-        recipe = None
-        recipe_id = None
+        recipe: Dict[str, Any] | None = None
+        recipe_id: str | None = None
         for rid, r in RECIPES.items():
-            if recipe_name.lower() in r['name'].lower():
+            name = str(r.get('name', ''))
+            if recipe_name.lower() in name.lower():
                 recipe = r
                 recipe_id = rid
                 break
@@ -490,11 +443,12 @@ class ChefService(McpServer):
         if not recipe:
             return {"error": f"Recipe '{recipe_name}' not found"}
 
-        scale_factor = servings / recipe['servings']
+        original_servings = int(recipe.get('servings', 1))
+        scale_factor = float(servings) / float(original_servings)
 
         return {
             "recipe": recipe['name'],
-            "original_servings": recipe['servings'],
+            "original_servings": original_servings,
             "new_servings": servings,
             "scale_factor": round(scale_factor, 2),
             "note": f"Multiply all ingredient amounts by {round(scale_factor, 2)}"
@@ -505,50 +459,101 @@ class ChefService(McpServer):
         dietary_restriction: Literal["vegan",
                                      "vegetarian", "gluten-free", "dairy-free"]
     ) -> list[str]:
-        """Find recipes matching SPECIFIC dietary restrictions (vegan, vegetarian, gluten-free, dairy-free ONLY).
+        """Find recipes matching specific dietary restrictions (vegan, vegetarian, gluten-free, dairy-free).
 
-        Use this ONLY for dietary needs. For cuisine types (Thai, Italian, Mexican) or general 
-        recipe search, use search_recipes_semantic instead.
+        Note: For general recipe search by cuisine, ingredients, or dish type, 
+        rely on the client-side semantic vector search which is more accurate.
         """
 
-        matching = []
-        for recipe_id, recipe in RECIPES.items():
-            if dietary_restriction in recipe['dietary']:
-                matching.append(recipe['name'])
+        matching: List[str] = []
+        for _rid, recipe in RECIPES.items():
+            raw_dietary = recipe.get('dietary', [])
+            dietary_list: List[str] = [str(x) for x in raw_dietary] if isinstance(
+                raw_dietary, list) else []
+            if str(dietary_restriction) in dietary_list:
+                matching.append(str(recipe.get('name', '')))
 
         return matching
 
-    def search_recipes_semantic(self, query: str, top_k: int = 3) -> list[dict]:
-        """Search for recipes by ANY criteria: cuisine (Thai, Italian, Mexican), ingredients, 
-        dish names, or cooking style. Returns detailed recipe information with resource URIs.
+    def get_recipe_details(self, resource_uri: str) -> dict:
+        """Return full recipe details (ingredients + instructions) with Markdown summary.
 
-        Examples: "Thai food", "pasta dishes", "chicken recipes", "spicy Mexican", "easy desserts"
+        Args:
+            resource_uri: Recipe URI like "res://thai_green_curry"
         """
+        recipe_id = resource_uri.replace('res://', '').strip()
+        if recipe_id not in RECIPES:
+            return {"error": f"Recipe '{recipe_id}' not found"}
 
-        query_embedding = compute_embedding(query)
+        recipe: Dict[str, Any] = RECIPES[recipe_id]
 
-        # Compute similarities
-        similarities = []
-        for recipe_id, recipe_embedding in RECIPE_EMBEDDINGS.items():
-            similarity = cosine_similarity(query_embedding, recipe_embedding)
-            similarities.append((recipe_id, similarity))
+        # Build markdown summary
+        lines: List[str] = []
+        lines.append(f"# {recipe['name']}")
+        lines.append("")
+        lines.append(f"- **Category**: {recipe['category']}")
+        if recipe.get('dietary'):
+            lines.append(f"- **Dietary**: {', '.join(recipe['dietary'])}")
+        lines.append(f"- **Servings**: {recipe['servings']}")
+        lines.append(f"- **Difficulty**: {recipe['difficulty']}")
+        lines.append(f"- **Prep Time**: {recipe['prep_time']} min")
+        lines.append(f"- **Cook Time**: {recipe['cook_time']} min")
+        lines.append("")
+        lines.append("## Ingredients")
+        for ing in recipe.get('ingredients', []):
+            lines.append(f"- {ing}")
+        lines.append("")
+        lines.append("## Instructions")
+        for idx, step in enumerate(recipe.get('instructions', []), start=1):
+            lines.append(f"{idx}. {step}")
+        lines.append("")
+        markdown = '\n'.join(lines)
 
-        # Sort by similarity
-        similarities.sort(key=lambda x: x[1], reverse=True)
+        return {
+            "name": recipe['name'],
+            "category": recipe['category'],
+            "dietary": recipe.get('dietary', []),
+            "servings": recipe['servings'],
+            "difficulty": recipe['difficulty'],
+            "prep_time": recipe['prep_time'],
+            "cook_time": recipe['cook_time'],
+            "ingredients": recipe.get('ingredients', []),
+            "instructions": recipe.get('instructions', []),
+            "markdown": markdown
+        }
 
-        # Return top-k recipes
-        results = []
-        for recipe_id, score in similarities[:top_k]:
-            recipe = RECIPES[recipe_id]
-            results.append({
-                "name": recipe['name'],
-                "resource_uri": f"res://{recipe_id}",
-                "category": recipe['category'],
-                "difficulty": recipe['difficulty'],
-                "relevance_score": round(score, 3)
-            })
+    def get_recipe_ingredients(self, resource_uri: str) -> dict:
+        """Return only the ingredients for a recipe (+ Markdown list)."""
+        recipe_id = resource_uri.replace('res://', '').strip()
+        if recipe_id not in RECIPES:
+            return {"error": f"Recipe '{recipe_id}' not found"}
 
-        return results
+        recipe: Dict[str, Any] = RECIPES[recipe_id]
+        ingredients = recipe.get('ingredients', [])
+        markdown = "\n".join(
+            [f"# {recipe['name']} - Ingredients", "", *[f"- {i}" for i in ingredients]])
+        return {
+            "name": recipe['name'],
+            "ingredients": ingredients,
+            "markdown": markdown
+        }
+
+    def get_recipe_steps(self, resource_uri: str) -> dict:
+        """Return only the instructions for a recipe (+ Markdown steps)."""
+        recipe_id = resource_uri.replace('res://', '').strip()
+        if recipe_id not in RECIPES:
+            return {"error": f"Recipe '{recipe_id}' not found"}
+
+        recipe: Dict[str, Any] = RECIPES[recipe_id]
+        steps = recipe.get('instructions', [])
+        lines = [f"# {recipe['name']} - Instructions", ""]
+        lines.extend([f"{i}. {s}" for i, s in enumerate(steps, start=1)])
+        markdown = "\n".join(lines)
+        return {
+            "name": recipe['name'],
+            "instructions": steps,
+            "markdown": markdown
+        }
 
     # ===== RESOURCES (Individual Recipes) =====
 
@@ -649,7 +654,7 @@ When planning meals, consider:
 4. **Budget**: Suggest cost-effective options and batch cooking
 5. **Dietary Needs**: Accommodate restrictions and preferences
 
-Use the search_recipes_semantic tool to find appropriate recipes.
+The system will automatically search for relevant recipes using semantic search.
 Suggest meal prep tips and shopping lists."""
             }]
         }

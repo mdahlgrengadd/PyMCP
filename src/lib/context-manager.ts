@@ -41,7 +41,8 @@ export class ContextManager {
     console.log('🔧 Building context for query...');
 
     // 1. Search for relevant resources WITH conversation history for context enhancement
-    const relevantResources = await this.searchRelevantResources(userQuery, 5, history);
+    // Limit to 2 resources to reduce confusion when multiple recipes/workouts are in context
+    const relevantResources = await this.searchRelevantResources(userQuery, 2, history);
 
     // 2. Select and compress history
     const compressedHistory = this.compressHistory(history);
@@ -98,10 +99,18 @@ export class ContextManager {
       // NOW filter by the configured threshold (after boosting)
       results = results.filter(r => r.score >= config.resourceSearchThreshold);
 
-      // Re-sort and limit
-      results = results
-        .sort((a, b) => b.score - a.score)
-        .slice(0, maxResults);
+      // Re-sort by score
+      results = results.sort((a, b) => b.score - a.score);
+
+      // If the top result has a perfect or near-perfect score (0.95+), it's likely the
+      // target of a follow-up question. Return ONLY that resource to avoid confusion.
+      if (results.length > 0 && results[0].score >= 0.95) {
+        console.log(`🎯 Top resource has very high score (${results[0].score.toFixed(3)}), returning only that one`);
+        results = [results[0]];
+      } else {
+        // Otherwise, limit to maxResults
+        results = results.slice(0, maxResults);
+      }
 
       console.log(`🔍 Found ${results.length} relevant resources (scores: ${results.map(r => r.score.toFixed(2)).join(', ')})`);
 
@@ -308,9 +317,9 @@ export class ContextManager {
         });
       }
       
-      // Also check for resource IDs mentioned without the res:// prefix
-      // E.g., "beginner_strength" in the text
-      const resourceIdMatches = content.match(/\b(beginner_strength|cardio_hiit|yoga_flexibility|exercise_form_guide|nutrition_basics)\b/gi);
+      // Also check for common resource name patterns mentioned in the text
+      // Match snake_case identifiers that look like resource IDs
+      const resourceIdMatches = content.match(/\b([a-z]+_[a-z_]+)\b/gi);
       if (resourceIdMatches) {
         resourceIdMatches.forEach(id => mentionedResourceNames.add(id.toLowerCase()));
       }
