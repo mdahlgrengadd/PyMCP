@@ -20,7 +20,6 @@ export default defineConfig({
       output: {
         manualChunks: {
           'vendor-webllm': ['@mlc-ai/web-llm'],
-          'vendor-wllama': ['@wllama/wllama'],
           'vendor-markdown': ['marked', 'dompurify'],
           'vendor-validation': ['ajv']
         }

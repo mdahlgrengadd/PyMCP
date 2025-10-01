@@ -145,26 +145,30 @@ export class McpLLMBridge {
     // Add user message
     messages.push({ role: 'user', content: userMessage });
 
-    // Proactive resource discovery: Search for relevant resources based on initial user query
+    // Proactive resource discovery: Search for relevant resources based on conversation context
     // This ensures resources are available even when LLM doesn't call tools
+    // Uses full conversation history so follow-up questions maintain context
     const initialDiscoveredResources = await this.resourceDiscovery.discoverRelevantResources(
       messages,
-      [], // No tool results yet, just use user message
-      { topK: 2, minScore: 0.15 }
+      [], // No tool results yet, just use conversation
+      { topK: 2, minScore: 0.15, lookbackMessages: 5 } // Look back at recent context
     );
     
     if (initialDiscoveredResources.length > 0) {
-      console.log('🔍 Proactively discovered resources for initial query:', initialDiscoveredResources);
+      console.log('🔍 Proactively discovered resources for conversation context:', initialDiscoveredResources);
       // Load and inject these resources into context before first LLM call
       const resourceContents = await this.resourceManager.loadResources(initialDiscoveredResources);
       if (resourceContents.length > 0) {
         const resourceContext = this.resourceManager.buildResourceContext(resourceContents);
-        // Append to existing system message (must be at the start)
+        // Clean old resources and inject new ones
         if (messages[0]?.role === 'system') {
-          messages[0].content = resourceContext + '\n\n' + messages[0].content;
-          console.log(`✅ Injected ${resourceContents.length} resource(s) into initial context`);
+          const cleanSystemPrompt = this.cleanSystemMessageResources(messages[0].content);
+          messages[0].content = resourceContext + '\n\n' + cleanSystemPrompt;
+          console.log(`✅ Injected ${resourceContents.length} resource(s) into context`);
         }
       }
+    } else {
+      console.log('ℹ️ No resources met relevance threshold for current conversation context');
     }
 
     // Multi-turn tool calling loop (manual parsing)

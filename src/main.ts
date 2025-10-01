@@ -2,6 +2,11 @@ import './styles/chat.css';
 import { PyodideMcpClient } from './lib/mcp-pyodide-client';
 import type { LLMClientInterface, ChatMessage } from './lib/llm-client-interface';
 import { McpLLMBridge, ToolExecution, ChatWithToolsOptions } from './lib/mcp-llm-bridge';
+import { McpLLMBridgeV2 } from './lib/mcp-llm-bridge-v2';
+import type { ReActStep } from './lib/react-agent';
+import { vectorStore } from './lib/vector-store';
+import { embeddingService } from './lib/embeddings';
+import { agentConfig } from './lib/agent-config';
 import type { ResourceDescriptor, PromptDescriptor } from './lib/mcp-resource-manager';
 import { McpResourceManager } from './lib/mcp-resource-manager';
 import { LLMClientFactory } from './lib/llm-client-factory';
@@ -20,6 +25,7 @@ interface AppState {
   llmClient: LLMClientInterface | null;
   mcpClient: PyodideMcpClient | null;
   bridge: McpLLMBridge | null;
+  bridgeV2: McpLLMBridgeV2 | null;
   conversationHistory: ChatMessage[];
   isLLMLoaded: boolean;
   isMCPLoaded: boolean;
@@ -32,12 +38,21 @@ interface AppState {
   selectedResources: Set<string>;
   availablePrompts: PromptDescriptor[];
   selectedPrompt: string | null;
+  // Metrics
+  metrics: {
+    totalQueries: number;
+    successfulTools: number;
+    failedTools: number;
+    avgSteps: number;
+    avgLatency: number;
+  };
 }
 
 const state: AppState = {
   llmClient: null,
   mcpClient: null,
   bridge: null,
+  bridgeV2: null,
   conversationHistory: [],
   isLLMLoaded: false,
   isMCPLoaded: false,
@@ -49,7 +64,14 @@ const state: AppState = {
   availableResources: [],
   selectedResources: new Set(),
   availablePrompts: [],
-  selectedPrompt: null
+  selectedPrompt: null,
+  metrics: {
+    totalQueries: 0,
+    successfulTools: 0,
+    failedTools: 0,
+    avgSteps: 0,
+    avgLatency: 0
+  }
 };
 
 // ============================================================================
@@ -499,14 +521,7 @@ async function handleLoadModel() {
 
     // Create bridge if MCP is already loaded
     if (state.mcpClient) {
-      const supportsFunctionCalling = state.currentModelInfo?.supportsFunctionCalling === true;
-      state.bridge = new McpLLMBridge(state.llmClient, state.mcpClient, supportsFunctionCalling);
-      
-      // Index resources if they were already discovered
-      if (state.availableResources.length > 0) {
-        await state.bridge.resourceDiscovery.indexResources();
-        console.log('📇 Indexed resources for semantic search after model load');
-      }
+      await createBridge();
     }
 
     updateUIState();
@@ -559,8 +574,7 @@ async function handleBootMCP() {
     
     // Create bridge if LLM is already loaded
     if (state.llmClient) {
-      const supportsFunctionCalling = state.currentModelInfo?.supportsFunctionCalling === true;
-      state.bridge = new McpLLMBridge(state.llmClient, state.mcpClient, supportsFunctionCalling);
+      await createBridge();
     }
     
     await handleRefreshTools();
@@ -651,26 +665,110 @@ async function handleRefreshTools() {
 async function handleSendMessage() {
   const message = chatInput.value.trim();
   if (!message || !state.isLLMLoaded || state.isGenerating) return;
-  
+
   // Clear input
   chatInput.value = '';
   chatInput.style.height = 'auto';
-  
+
   // Add user message to UI
   addUserMessage(message);
-  
+
   // Hide prompt cards once conversation starts
   renderPromptCards();
-  
+
   // Update state
   state.isGenerating = true;
   updateUIState();
-  
+
+  const startTime = Date.now();
+
   try {
     // Show typing indicator
     const typingId = addTypingIndicator();
-    
-    if (state.bridge && state.isMCPLoaded) {
+
+    // Route to appropriate bridge based on config and availability
+    const config = agentConfig.get();
+    const useV2 = config.useReActAgent && state.bridgeV2 && state.isMCPLoaded;
+
+    if (useV2) {
+      // === Use ReAct-based bridge (V2) ===
+      console.log('🎯 Using ReAct agent (V2)');
+
+      let stepCount = 0;
+
+      const result = await state.bridgeV2!.chatWithTools(
+        message,
+        state.conversationHistory,
+        (step) => {
+          // ReAct step callback
+          stepCount++;
+          if (config.debugMode) {
+            if (step.thought) {
+              console.log('💭 Thought:', step.thought);
+            }
+            if (step.action) {
+              console.log('🔧 Action:', step.action.tool, step.action.input);
+            }
+            if (step.observation) {
+              console.log('👁️ Observation:', step.observation.substring(0, 100) + '...');
+            }
+            if (step.answer) {
+              console.log('✅ Final Answer:', step.answer.substring(0, 100) + '...');
+            }
+          }
+        },
+        (execution) => {
+          // Tool execution callback
+          removeTypingIndicator(typingId);
+          if (execution.error) {
+            state.metrics.failedTools++;
+            console.error('❌ Tool failed:', execution.name, execution.error);
+          } else {
+            state.metrics.successfulTools++;
+            console.log('✅ Tool succeeded:', execution.name);
+          }
+          addToolExecution(execution);
+        }
+      );
+
+      // Update conversation history
+      state.conversationHistory = result.messages;
+
+      // Update metrics
+      const duration = Date.now() - startTime;
+      state.metrics.totalQueries++;
+      state.metrics.avgLatency =
+        (state.metrics.avgLatency * (state.metrics.totalQueries - 1) + duration) /
+        state.metrics.totalQueries;
+      state.metrics.avgSteps =
+        (state.metrics.avgSteps * (state.metrics.totalQueries - 1) + stepCount) /
+        state.metrics.totalQueries;
+
+      if (config.debugMode) {
+        console.log('📊 Metrics:', {
+          totalQueries: state.metrics.totalQueries,
+          successRate: (state.metrics.successfulTools / (state.metrics.successfulTools + state.metrics.failedTools) * 100).toFixed(1) + '%',
+          avgSteps: state.metrics.avgSteps.toFixed(2),
+          avgLatency: state.metrics.avgLatency.toFixed(0) + 'ms'
+        });
+      }
+
+      // Display final message if not streaming
+      if (!streamResponseCheckbox.checked) {
+        removeTypingIndicator(typingId);
+        const lastAssistantMsg = result.messages
+          .filter(m => m.role === 'assistant' && m.content)
+          .pop();
+        if (lastAssistantMsg) {
+          addAssistantMessage(lastAssistantMsg.content);
+        }
+      } else if (currentMessageId) {
+        finalizeMessage(currentMessageId);
+      }
+
+    } else if (state.bridge && state.isMCPLoaded) {
+      // === Use standard bridge (V1) ===
+      console.log('🔧 Using standard bridge (V1)');
       // Check if model supports function calling
       const modelSupportsTools = state.currentModelInfo?.supportsFunctionCalling !== false;
       
@@ -985,6 +1083,72 @@ function renderMarkdown(content: string): string {
 }
 
 // ============================================================================
+// ReAct Agent Initialization
+// ============================================================================
+
+async function initializeReActComponents(): Promise<void> {
+  try {
+    // Initialize embedding service
+    console.log('📥 Loading embedding model (22MB, may take 30-60s)...');
+    await embeddingService.init();
+
+    // Initialize vector store
+    console.log('💾 Initializing vector database...');
+    await vectorStore.init();
+
+    console.log('✅ ReAct agent components ready!');
+  } catch (error) {
+    console.error('ReAct initialization failed:', error);
+    throw error;
+  }
+}
+
+async function createBridge(): Promise<void> {
+  if (!state.llmClient || !state.mcpClient) {
+    console.warn('Cannot create bridge: LLM or MCP not loaded');
+    return;
+  }
+
+  const config = agentConfig.get();
+
+  if (config.useReActAgent && vectorStore.isReady() && embeddingService.isReady()) {
+    // Use new ReAct-based bridge
+    console.log('🎯 Creating ReAct-based bridge (V2)...');
+    state.bridgeV2 = new McpLLMBridgeV2(
+      state.llmClient,
+      state.mcpClient,
+      vectorStore
+    );
+
+    // Index resources if available
+    if (state.availableResources.length > 0) {
+      console.log(`📚 Indexing ${state.availableResources.length} resources for semantic search...`);
+      const resourcesToIndex = state.availableResources.map(r => ({
+        uri: r.uri,
+        content: `${r.name}: ${r.description || ''}`
+      }));
+      await state.bridgeV2.indexResources(resourcesToIndex);
+
+      const stats = await state.bridgeV2.getIndexStats();
+      console.log(`✅ Indexed ${stats.count} resources`);
+    }
+  } else {
+    // Use standard bridge as fallback
+    console.log('🔧 Creating standard bridge (V1)...');
+    const supportsFunctionCalling = state.currentModelInfo?.supportsFunctionCalling === true;
+    state.bridge = new McpLLMBridge(
+      state.llmClient,
+      state.mcpClient,
+      supportsFunctionCalling
+    );
+
+    if (state.availableResources.length > 0 && state.bridge.resourceDiscovery) {
+      await state.bridge.resourceDiscovery.indexResources();
+    }
+  }
+}
+
+// ============================================================================
 // Initialize
 // ============================================================================
 
@@ -994,6 +1158,23 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   await initializeApp();
 
+  // Initialize ReAct agent components (async, non-blocking)
+  if (agentConfig.get().useReActAgent) {
+    console.log('🚀 Initializing ReAct agent components...');
+
+    initializeReActComponents().catch(error => {
+      console.error('Failed to initialize ReAct components:', error);
+      console.log('⚠️ Falling back to standard agent');
+      agentConfig.toggleReAct(false);
+    });
+  }
+
   console.log('⚡ Select and load a model to start chatting');
   console.log('🔧 Boot MCP server for tool support');
+
+  // Expose state globally for debugging
+  (window as any).appState = state;
+  (window as any).agentConfig = agentConfig;
+  (window as any).vectorStore = vectorStore;
+  (window as any).embeddingService = embeddingService;
 });

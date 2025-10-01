@@ -1,7 +1,7 @@
-import { Wllama } from '@wllama/wllama';
+import { Wllama } from '@wllama/wllama/esm/index.js';
 // Proper URL imports for wllama WASM files
-import wllamaSingle from '@wllama/wllama/src/single-thread/wllama.wasm?url';
-import wllamaMulti from '@wllama/wllama/src/multi-thread/wllama.wasm?url';
+import wllamaSingle from '@wllama/wllama/esm/single-thread/wllama.wasm?url';
+import wllamaMulti from '@wllama/wllama/esm/multi-thread/wllama.wasm?url';
 import type {
   LLMClientInterface,
   ChatMessage,
