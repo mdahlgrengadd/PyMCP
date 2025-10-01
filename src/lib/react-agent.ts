@@ -253,6 +253,16 @@ Action: search_recipes
 Action Input: {"query": "Thai", "max_results": 5}
 [STOP HERE - wait for results with resource_uri for each recipe]
 
+Then after getting the tool results, your next response:
+Thought: I found Thai recipes from the search. I should list all of them with their resource URIs so the user can ask for details on any specific one.
+Final Answer: Here are the Thai recipes I found:
+
+1. **Thai Green Curry with Vegetables** (res://thai_green_curry) - Medium difficulty, vegan and gluten-free
+2. **Pad Thai with Shrimp** (res://pad_thai) - Medium difficulty, classic Thai street food
+3. **Thai Basil Chicken (Pad Krapow Gai)** (res://thai_basil_chicken) - Easy difficulty, quick and spicy
+
+For the complete recipe with ingredients and instructions, just ask "show me the full recipe for [recipe name]"!
+
 Example 5 - Follow-Up with Specific Recipe from Multiple Results:
 Conversation History:
 User: "Find vegan recipes"

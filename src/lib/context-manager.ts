@@ -411,8 +411,15 @@ export class ContextManager {
     // Strategy 3: Combine query with unique context terms
     const uniqueTerms = [...new Set(contextTerms)];
     if (uniqueTerms.length > 0) {
-      // Use only the FIRST term (most recent) to avoid ambiguity
-      const relevantContext = uniqueTerms[0];
+      // Prioritize terms that contain keywords from the user's query
+      const queryWords = queryLower.split(/\s+/);
+      const relevantTerms = uniqueTerms.filter(term => 
+        queryWords.some(word => term.toLowerCase().includes(word))
+      );
+      
+      // If we found relevant terms, use the first one
+      // Otherwise, use the first term (most recent)
+      const relevantContext = relevantTerms.length > 0 ? relevantTerms[0] : uniqueTerms[0];
       return `${query} ${relevantContext}`;
     }
     

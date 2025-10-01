@@ -184,6 +184,71 @@ RECIPES = {
         ],
         "tags": ["Thai", "curry", "vegan", "spicy", "coconut", "Asian"]
     },
+    "pad_thai": {
+        "name": "Pad Thai with Shrimp",
+        "category": "Thai",
+        "dietary": ["gluten-free"],
+        "prep_time": 15,
+        "cook_time": 10,
+        "servings": 4,
+        "difficulty": "medium",
+        "ingredients": [
+            "8 oz rice noodles",
+            "1 lb shrimp, peeled and deveined",
+            "3 tbsp fish sauce",
+            "2 tbsp tamarind paste",
+            "2 tbsp palm sugar",
+            "3 cloves garlic, minced",
+            "2 eggs",
+            "1 cup bean sprouts",
+            "3 green onions, sliced",
+            "1/4 cup roasted peanuts, crushed",
+            "Lime wedges for serving"
+        ],
+        "instructions": [
+            "Soak rice noodles in warm water for 30 minutes, drain",
+            "Mix fish sauce, tamarind paste, and palm sugar in a bowl",
+            "Heat oil in wok over high heat, stir-fry garlic",
+            "Add shrimp, cook until pink (2-3 minutes)",
+            "Push shrimp to side, crack eggs into wok and scramble",
+            "Add drained noodles and sauce, toss to combine",
+            "Add bean sprouts and green onions, stir-fry 2 minutes",
+            "Serve garnished with peanuts and lime wedges"
+        ],
+        "tags": ["Thai", "noodles", "shrimp", "stir-fry", "quick", "Asian"]
+    },
+    "thai_basil_chicken": {
+        "name": "Thai Basil Chicken (Pad Krapow Gai)",
+        "category": "Thai",
+        "dietary": ["gluten-free"],
+        "prep_time": 10,
+        "cook_time": 10,
+        "servings": 4,
+        "difficulty": "easy",
+        "ingredients": [
+            "1.5 lbs ground chicken",
+            "3 tbsp vegetable oil",
+            "6 cloves garlic, minced",
+            "2 Thai chilies, sliced",
+            "2 tbsp oyster sauce",
+            "2 tbsp soy sauce",
+            "1 tbsp fish sauce",
+            "1 tsp sugar",
+            "1 cup Thai basil leaves",
+            "4 fried eggs (for topping)",
+            "Steamed jasmine rice for serving"
+        ],
+        "instructions": [
+            "Heat oil in wok over high heat",
+            "Add garlic and chilies, stir-fry 30 seconds",
+            "Add ground chicken, break up and cook until browned",
+            "Add oyster sauce, soy sauce, fish sauce, and sugar",
+            "Stir-fry 2-3 minutes until chicken is cooked through",
+            "Turn off heat, stir in Thai basil until wilted",
+            "Serve over rice topped with fried egg"
+        ],
+        "tags": ["Thai", "chicken", "spicy", "quick", "easy", "basil", "Asian"]
+    },
     "beef_tacos": {
         "name": "Authentic Beef Tacos",
         "category": "Mexican",
@@ -655,6 +720,22 @@ class ChefService(McpServer):
     def resource_beef_tacos(self) -> dict:
         """Authentic Beef Tacos - Quick and delicious Mexican tacos"""
         recipe = RECIPES["beef_tacos"]
+        return {
+            "mimeType": "application/json",
+            "text": json.dumps(recipe, indent=2)
+        }
+
+    def resource_pad_thai(self) -> dict:
+        """Pad Thai with Shrimp - Classic Thai street food"""
+        recipe = RECIPES["pad_thai"]
+        return {
+            "mimeType": "application/json",
+            "text": json.dumps(recipe, indent=2)
+        }
+
+    def resource_thai_basil_chicken(self) -> dict:
+        """Thai Basil Chicken (Pad Krapow Gai) - Quick and spicy Thai dish"""
+        recipe = RECIPES["thai_basil_chicken"]
         return {
             "mimeType": "application/json",
             "text": json.dumps(recipe, indent=2)
