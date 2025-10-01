@@ -100,6 +100,13 @@ export class McpLLMBridgeV2 {
 
           toolExecutions.push(execution);
           onToolExecution?.(execution);
+
+          // Auto-index successful tool results for future semantic search
+          if (!execution.error && execution.result) {
+            this.indexToolResult(execution).catch(err =>
+              console.warn('Failed to index tool result:', err)
+            );
+          }
         }
 
         onStepComplete?.(step);
@@ -118,6 +125,21 @@ export class McpLLMBridgeV2 {
       toolExecutions,
       reactSteps: result.steps
     };
+  }
+
+  /**
+   * Automatically index tool results for future semantic search
+   */
+  private async indexToolResult(execution: ToolExecution): Promise<void> {
+    try {
+      const uri = `tool://${execution.name}/${execution.id}`;
+      const content = `Tool: ${execution.name}\nArguments: ${JSON.stringify(execution.arguments)}\nResult: ${JSON.stringify(execution.result, null, 2)}`;
+
+      console.log(`📇 Auto-indexing tool result: ${uri}`);
+      await this.indexResource(uri, content);
+    } catch (error) {
+      console.error('Failed to index tool result:', error);
+    }
   }
 
   /**

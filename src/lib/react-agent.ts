@@ -87,8 +87,22 @@ export class ReActAgent {
 
       // Safety check for infinite loops
       if (i === maxSteps - 1) {
+        // Use accumulated observations as fallback
+        const observations = steps
+          .filter(s => s.observation && !s.observation.startsWith('ERROR'))
+          .map(s => s.observation)
+          .join('\n\n');
+
+        if (observations) {
+          console.warn('⚠️ Max steps reached - generating answer from accumulated data');
+          return {
+            answer: `Based on the information I gathered:\n\n${observations}\n\nI reached the step limit, but here's what I found. Please let me know if you'd like more specific details.`,
+            steps
+          };
+        }
+
         return {
-          answer: "I apologize, but I couldn't complete the task within the step limit. Please try rephrasing your question.",
+          answer: "I apologize, but I couldn't complete the task within the step limit. Please try rephrasing your question or using different tools.",
           steps
         };
       }

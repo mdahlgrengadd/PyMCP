@@ -640,16 +640,47 @@ async function handleRefreshTools() {
     state.availablePrompts = prompts;
 
     console.log(`Discovered ${resources.length} resources and ${prompts.length} prompts`);
-    
-    // Index resources for semantic search (only if bridge exists)
-    if (resources.length > 0 && state.bridge) {
-      await state.bridge.resourceDiscovery.indexResources();
+
+    // Index resources for semantic search
+    if (resources.length > 0) {
+      if (state.bridgeV2) {
+        // V2 Bridge - fetch and index full content
+        console.log(`📚 Indexing ${resources.length} resources for ReAct agent...`);
+        const resourcesToIndex = await Promise.all(
+          resources.map(async (r) => {
+            try {
+              const resourceData = await state.mcpClient!.call('resources/read', { uri: r.uri });
+              let content = `${r.name}: ${r.description || ''}\n\n`;
+
+              if (resourceData && resourceData.contents) {
+                for (const item of resourceData.contents) {
+                  if (item.text) {
+                    content += item.text + '\n';
+                  }
+                }
+              }
+
+              return { uri: r.uri, content };
+            } catch (error) {
+              console.warn(`Failed to fetch resource ${r.uri}:`, error);
+              return { uri: r.uri, content: `${r.name}: ${r.description || ''}` };
+            }
+          })
+        );
+
+        await state.bridgeV2.indexResources(resourcesToIndex);
+        const stats = await state.bridgeV2.getIndexStats();
+        console.log(`✅ Indexed ${stats.count} resources with full content`);
+      } else if (state.bridge) {
+        // V1 Bridge - use existing resource discovery
+        await state.bridge.resourceDiscovery.indexResources();
+      }
     }
-    
+
     if (resources.length > 0 || prompts.length > 0) {
       addSystemMessage(
         `📚 Discovered ${resources.length} resource(s) and ${prompts.length} prompt template(s). ` +
-        (state.bridge ? `Semantic search enabled for automatic context enrichment.` : 
+        ((state.bridge || state.bridgeV2) ? `Semantic search enabled for automatic context enrichment.` :
          `Load a model for semantic search and tool support.`)
       );
     }
@@ -1120,17 +1151,37 @@ async function createBridge(): Promise<void> {
       vectorStore
     );
 
-    // Index resources if available
+    // Index resources if available (fetch full content)
     if (state.availableResources.length > 0) {
       console.log(`📚 Indexing ${state.availableResources.length} resources for semantic search...`);
-      const resourcesToIndex = state.availableResources.map(r => ({
-        uri: r.uri,
-        content: `${r.name}: ${r.description || ''}`
-      }));
+
+      // Fetch full content for each resource
+      const resourcesToIndex = await Promise.all(
+        state.availableResources.map(async (r) => {
+          try {
+            const resourceData = await state.mcpClient!.call('resources/read', { uri: r.uri });
+            let content = `${r.name}: ${r.description || ''}\n\n`;
+
+            if (resourceData && resourceData.contents) {
+              for (const item of resourceData.contents) {
+                if (item.text) {
+                  content += item.text + '\n';
+                }
+              }
+            }
+
+            return { uri: r.uri, content };
+          } catch (error) {
+            console.warn(`Failed to fetch resource ${r.uri}:`, error);
+            return { uri: r.uri, content: `${r.name}: ${r.description || ''}` };
+          }
+        })
+      );
+
       await state.bridgeV2.indexResources(resourcesToIndex);
 
       const stats = await state.bridgeV2.getIndexStats();
-      console.log(`✅ Indexed ${stats.count} resources`);
+      console.log(`✅ Indexed ${stats.count} resources with full content`);
     }
   } else {
     // Use standard bridge as fallback

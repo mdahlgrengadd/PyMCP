@@ -70,13 +70,16 @@ export class VectorStore {
   ): Promise<void> {
     if (!this.db) throw new Error('VectorStore not initialized');
 
+    console.log(`💾 Storing embedding for ${uri}: ${embedding.length} dimensions`);
+
     // Convert Float32Array to Blob
     const embeddingBlob = new Uint8Array(embedding.buffer);
 
     const metadata = JSON.stringify({
       text: text.substring(0, 500), // Store preview
       textLength: text.length,
-      indexed_at: Date.now()
+      indexed_at: Date.now(),
+      embeddingDim: embedding.length
     });
 
     try {
@@ -85,6 +88,18 @@ export class VectorStore {
               VALUES (?, ?, ?, ?)`,
         bind: [uri, embeddingBlob, metadata, Date.now()]
       });
+
+      // Verify the data was stored correctly
+      const verify = this.db.exec({
+        sql: 'SELECT length(embedding) as len FROM resource_embeddings WHERE resource_uri = ?',
+        bind: [uri],
+        returnValue: 'resultRows'
+      });
+
+      if (verify && verify.length > 0) {
+        const storedBytes = verify[0][0];
+        console.log(`✅ Stored ${storedBytes} bytes for ${uri} (expected ${embeddingBlob.length})`);
+      }
     } catch (error) {
       console.error(`Failed to add resource ${uri}:`, error);
       throw error;
@@ -108,15 +123,45 @@ export class VectorStore {
       const results: VectorSearchResult[] = [];
 
       while (stmt.step()) {
-        const row = stmt.get({});
-        const uri = row[0];
-        const embeddingBlob = row[1];
-        const metadata = JSON.parse(row[2]);
+        // SQLite WASM: Use indexed get for each column
+        const uri = stmt.get(0);
+        const embeddingBlob = stmt.get(1);
+        const metadataStr = stmt.get(2);
+
+        // Parse metadata with fallback
+        let metadata = {};
+        if (metadataStr) {
+          try {
+            metadata = JSON.parse(metadataStr);
+          } catch (e) {
+            console.warn(`Failed to parse metadata for ${uri}:`, e);
+            metadata = { text: '', textLength: 0 };
+          }
+        }
 
         // Convert blob back to Float32Array
-        const embedding = new Float32Array(
-          new Uint8Array(embeddingBlob).buffer
-        );
+        let embedding: Float32Array;
+        if (!embeddingBlob || embeddingBlob.length === 0) {
+          console.warn(`Empty embedding blob for ${uri}, skipping`);
+          continue;
+        }
+
+        try {
+          // SQLite might return Uint8Array directly or need conversion
+          const uint8Array = embeddingBlob instanceof Uint8Array
+            ? embeddingBlob
+            : new Uint8Array(embeddingBlob);
+
+          embedding = new Float32Array(uint8Array.buffer, uint8Array.byteOffset, uint8Array.byteLength / 4);
+
+          if (embedding.length === 0) {
+            console.warn(`Zero-length embedding for ${uri} after conversion, skipping`);
+            continue;
+          }
+        } catch (error) {
+          console.error(`Failed to convert embedding for ${uri}:`, error);
+          continue;
+        }
 
         // Calculate cosine similarity
         const score = this.cosineSimilarity(queryEmbedding, embedding);
@@ -149,7 +194,7 @@ export class VectorStore {
       const uris: string[] = [];
 
       while (stmt.step()) {
-        uris.push(stmt.get({})[0]);
+        uris.push(stmt.get(0));
       }
 
       stmt.finalize();
@@ -199,12 +244,13 @@ export class VectorStore {
     try {
       const stmt = this.db.prepare('SELECT COUNT(*), SUM(LENGTH(embedding)) FROM resource_embeddings');
       stmt.step();
-      const row = stmt.get({});
+      const count = stmt.get(0) || 0;
+      const totalSize = stmt.get(1) || 0;
       stmt.finalize();
 
       return {
-        count: row[0] || 0,
-        totalSize: row[1] || 0
+        count,
+        totalSize
       };
     } catch (error) {
       return { count: 0, totalSize: 0 };
@@ -216,7 +262,7 @@ export class VectorStore {
    */
   private cosineSimilarity(a: Float32Array, b: Float32Array): number {
     if (a.length !== b.length) {
-      console.warn('Embedding dimension mismatch');
+      console.warn(`Embedding dimension mismatch: ${a.length} vs ${b.length}`);
       return 0;
     }
 
