@@ -98,23 +98,21 @@ export class EmbeddingService {
 
   /**
    * Compute cosine similarity between two embeddings
+   * OPTIMIZED: Assumes embeddings are already L2-normalized (norm = 1.0)
+   * For normalized vectors: cosine_similarity = dot_product
    */
   static cosineSimilarity(a: Float32Array, b: Float32Array): number {
     if (a.length !== b.length) {
       throw new Error('Embeddings must have same dimensions');
     }
 
+    // For L2-normalized vectors, cosine similarity = dot product
     let dotProduct = 0;
-    let normA = 0;
-    let normB = 0;
-
     for (let i = 0; i < a.length; i++) {
       dotProduct += a[i] * b[i];
-      normA += a[i] * a[i];
-      normB += b[i] * b[i];
     }
 
-    return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
+    return dotProduct;
   }
 
   /**

@@ -576,6 +576,23 @@ async function handleBootMCP() {
     
     state.isMCPLoaded = true;
     
+    // Clear conversation history when switching MCP servers to avoid context pollution
+    if (state.conversationHistory.length > 0) {
+      console.log('🧹 Clearing conversation history (new MCP server)');
+      state.conversationHistory = [];
+      chatMessages.innerHTML = `
+        <div class="system-message">
+          <p>🔄 MCP server switched - conversation history cleared to prevent context pollution</p>
+        </div>
+      `;
+    }
+    
+    // Clear vector store to remove old server's resources
+    if (vectorStore.isReady()) {
+      console.log('🧹 Clearing vector store (new MCP server)');
+      await vectorStore.clear();
+    }
+    
     // Create bridge if LLM is already loaded
     if (state.llmClient) {
       await createBridge();
@@ -654,7 +671,12 @@ async function handleRefreshTools() {
           resources.map(async (r) => {
             try {
               const resourceData = await state.mcpClient!.call('resources/read', { uri: r.uri });
-              let content = `${r.name}: ${r.description || ''}\n\n`;
+              
+              // Make name/description prominent for better semantic matching
+              let content = `RESOURCE: ${r.name}\n`;
+              content += `DESCRIPTION: ${r.description || ''}\n`;
+              content += `URI: ${r.uri}\n`;
+              content += `\nCONTENT:\n`;
 
               if (resourceData && resourceData.contents) {
                 for (const item of resourceData.contents) {
@@ -1150,39 +1172,7 @@ async function createBridge(): Promise<void> {
       state.mcpClient,
       vectorStore
     );
-
-    // Index resources if available (fetch full content)
-    if (state.availableResources.length > 0) {
-      console.log(`📚 Indexing ${state.availableResources.length} resources for semantic search...`);
-
-      // Fetch full content for each resource
-      const resourcesToIndex = await Promise.all(
-        state.availableResources.map(async (r) => {
-          try {
-            const resourceData = await state.mcpClient!.call('resources/read', { uri: r.uri });
-            let content = `${r.name}: ${r.description || ''}\n\n`;
-
-            if (resourceData && resourceData.contents) {
-              for (const item of resourceData.contents) {
-                if (item.text) {
-                  content += item.text + '\n';
-                }
-              }
-            }
-
-            return { uri: r.uri, content };
-          } catch (error) {
-            console.warn(`Failed to fetch resource ${r.uri}:`, error);
-            return { uri: r.uri, content: `${r.name}: ${r.description || ''}` };
-          }
-        })
-      );
-
-      await state.bridgeV2.indexResources(resourcesToIndex);
-
-      const stats = await state.bridgeV2.getIndexStats();
-      console.log(`✅ Indexed ${stats.count} resources with full content`);
-    }
+    // Note: Resource indexing happens in handleRefreshTools() to avoid duplication
   } else {
     // Use standard bridge as fallback
     console.log('🔧 Creating standard bridge (V1)...');

@@ -129,6 +129,7 @@ export class McpLLMBridgeV2 {
 
   /**
    * Automatically index tool results for future semantic search
+   * Also fetches and indexes any resource_uri references in the result
    */
   private async indexToolResult(execution: ToolExecution): Promise<void> {
     try {
@@ -137,8 +138,84 @@ export class McpLLMBridgeV2 {
 
       console.log(`📇 Auto-indexing tool result: ${uri}`);
       await this.indexResource(uri, content);
+
+      // Check if result contains resource_uri references and fetch them
+      await this.fetchReferencedResources(execution.result);
     } catch (error) {
       console.error('Failed to index tool result:', error);
+    }
+  }
+
+  /**
+   * Fetch and index any resources referenced in tool results
+   */
+  private async fetchReferencedResources(result: any): Promise<void> {
+    if (!result) {
+      console.log('📚 No result to check for referenced resources');
+      return;
+    }
+
+    const resourceUris: string[] = [];
+
+    // Extract resource_uri from result (handles arrays and objects)
+    const extractUris = (obj: any, depth = 0) => {
+      if (Array.isArray(obj)) {
+        console.log(`  ${'  '.repeat(depth)}Array with ${obj.length} items`);
+        obj.forEach(item => extractUris(item, depth + 1));
+      } else if (typeof obj === 'object' && obj !== null) {
+        if (obj.resource_uri && typeof obj.resource_uri === 'string') {
+          console.log(`  ${'  '.repeat(depth)}✓ Found resource_uri: ${obj.resource_uri}`);
+          resourceUris.push(obj.resource_uri);
+        }
+        Object.keys(obj).forEach(key => {
+          if (key === 'resource_uri') return; // Already handled above
+          extractUris(obj[key], depth + 1);
+        });
+      }
+    };
+
+    console.log('🔍 Scanning tool result for resource_uri references...');
+    extractUris(result);
+    
+    if (resourceUris.length === 0) {
+      console.log('  No resource_uri found in tool result');
+      return;
+    }
+    
+    console.log(`📚 Found ${resourceUris.length} resource URI(s) to fetch`);
+
+    // Fetch and index each referenced resource
+    for (const uri of resourceUris) {
+      try {
+        console.log(`📚 Fetching referenced resource: ${uri}`);
+        
+        // Get resource metadata
+        const resources = await this.mcpClient.call('resources/list', {});
+        const resourceMeta = resources.resources?.find((r: any) => r.uri === uri);
+        
+        const resourceData = await this.mcpClient.call('resources/read', { uri });
+        
+        if (resourceData && resourceData.contents) {
+          // Make name/description prominent for better semantic matching
+          let content = `RESOURCE: ${resourceMeta?.name || uri}\n`;
+          content += `DESCRIPTION: ${resourceMeta?.description || ''}\n`;
+          content += `URI: ${uri}\n`;
+          content += `\nCONTENT:\n`;
+          
+          for (const item of resourceData.contents) {
+            if (item.text) {
+              content += item.text + '\n';
+            }
+          }
+          
+          if (content) {
+            console.log(`📇 Auto-indexing referenced resource: ${uri} (${resourceMeta?.name || 'unknown'})`);
+            await this.indexResource(uri, content);
+          }
+        }
+      } catch (error) {
+        console.warn(`Failed to fetch referenced resource ${uri}:`, error);
+      }
     }
   }
 

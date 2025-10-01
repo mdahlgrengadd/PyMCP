@@ -65,6 +65,16 @@ export class ReActAgent {
         // Execute the action
         try {
           const result = await this.executeAction(step.action);
+
+          // Deterministic fast-path: if get_workout_details returns markdown, answer immediately
+          if (step.action.tool === 'get_workout_details' && result && typeof result === 'object' && result.markdown) {
+            const answer = String(result.markdown);
+            steps.push({ ...step, observation: JSON.stringify(result, null, 2), answer });
+            onStepComplete?.(steps[steps.length - 1]);
+            console.log('🧾 Using tool-provided markdown as final answer');
+            return { answer, steps };
+          }
+
           step.observation = JSON.stringify(result, null, 2);
           console.log('👁️ Observation:', step.observation.substring(0, 200));
         } catch (error: any) {
@@ -170,6 +180,11 @@ Final Answer: [your complete response to the user]
 5. Action Input must be valid JSON
 6. Don't make up information - use tool results or provided context
 7. READ tool results carefully - don't say something is missing when it's clearly in the results
+
+### When a resource_uri is available (e.g., res://beginner_strength)
+- Prefer calling get_workout_details (or the domain-equivalent "details" tool) with that URI to retrieve structured details.
+- Do NOT re-run the search tool (e.g., find_workouts) unless the user changes goal/level or asks to search again.
+- If the full details are already present in the provided context, answer directly without calling a tool.
 
 ## Examples:
 

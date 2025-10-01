@@ -7,11 +7,16 @@ Features:
 - 🎯 PROMPTS: Fitness workflows (goal setting, form coaching)
 """
 
-from typing import Literal, Optional
-from pydantic import BaseModel, Field
-from mcp_core import McpServer, attach_pyodide_worker
+from typing import Literal, Optional, Any, Dict, List
+try:
+    from mcp_core import McpServer, attach_pyodide_worker  # type: ignore
+except ImportError:  # Fallback for static analysis/linting environments
+    class McpServer:  # type: ignore
+        pass
+
+    def attach_pyodide_worker(_svc: object) -> None:  # type: ignore
+        pass
 import json
-import math
 
 
 # ============================================================================
@@ -289,6 +294,113 @@ class FitnessService(McpServer):
             "logged": True
         }
 
+    def get_workout_details(self, resource_uri: str) -> dict:
+        """Get complete workout details including exercises, sets, reps, and rest periods.
+
+        Args:
+            resource_uri: The workout resource URI (e.g., "res://beginner_strength")
+
+        Returns:
+            Complete workout details with all exercises, sets, reps formatted for display,
+            plus a markdown summary for clean UI rendering.
+        """
+        # Extract program ID from URI
+        program_id = resource_uri.replace("res://", "")
+
+        if program_id not in WORKOUT_PROGRAMS:
+            return {"error": f"Workout '{program_id}' not found"}
+
+        program: Dict[str, Any] = WORKOUT_PROGRAMS[program_id]
+
+        # Format exercises for clear display
+        formatted_workouts: Dict[str, Any] = {}
+        workouts_data: Dict[str, Any] = program.get("workouts", {}) or {}
+        for day_id, day_data in workouts_data.items():
+            day_dict: Dict[str, Any] = day_data if isinstance(
+                day_data, dict) else {}
+            exercises: List[Dict[str, Any]] = []
+
+            # Handle different workout formats (exercises list vs poses list)
+            exercise_list: List[Dict[str, Any]] = (
+                day_dict.get("exercises")
+                or day_dict.get("poses")
+                or []
+            )
+
+            for ex in exercise_list:
+                exercise_info = {
+                    "name": ex["name"],
+                    "sets": ex.get("sets", "N/A"),
+                    "reps": ex.get("reps", ex.get("duration", "N/A")),
+                    "rest": ex.get("rest", "N/A")
+                }
+                # Add benefit for yoga poses
+                if "benefit" in ex:
+                    exercise_info["benefit"] = ex["benefit"]
+
+                exercises.append(exercise_info)
+
+            formatted_workouts[day_id] = {
+                "name": day_dict.get("name", day_id),
+                "format": day_dict.get("format"),
+                "duration": day_dict.get("duration"),
+                "rounds": day_dict.get("rounds"),
+                "exercises": exercises
+            }
+
+        # Build a markdown summary for easy display
+        lines = []
+        lines.append(f"# {program['name']}")
+        lines.append("")
+        lines.append(f"- **Goal**: {program['goal']}")
+        lines.append(f"- **Level**: {program['level']}")
+        lines.append(f"- **Duration**: {program['duration_weeks']} weeks")
+        lines.append(f"- **Frequency**: {program['days_per_week']} days/week")
+        equipment_list = program.get('equipment', []) or []
+        lines.append(f"- **Equipment**: {', '.join(map(str, equipment_list))}")
+        if program.get('description'):
+            lines.append("")
+            lines.append(str(program['description']))
+        lines.append("")
+
+        for day_id, day in formatted_workouts.items():
+            lines.append(f"## {day['name']}")
+            if day.get('format'):
+                lines.append(f"- **Format**: {day['format']}")
+            if day.get('rounds'):
+                lines.append(f"- **Rounds**: {day['rounds']}")
+            if day.get('duration'):
+                lines.append(f"- **Duration**: {day['duration']}")
+            lines.append("")
+            for ex in day['exercises']:
+                parts = [f"- {ex['name']}"]
+                if ex.get('sets') != "N/A" and ex.get('reps') != "N/A":
+                    parts.append(f"{ex['sets']}×{ex['reps']}")
+                elif ex.get('sets') != "N/A":
+                    parts.append(f"{ex['sets']} sets")
+                elif ex.get('reps') != "N/A":
+                    parts.append(f"{ex['reps']}")
+                if ex.get('rest') and ex['rest'] != "N/A":
+                    parts.append(f"({ex['rest']} rest)")
+                if ex.get('benefit'):
+                    parts.append(f"– {ex['benefit']}")
+                lines.append(' '.join(parts))
+            lines.append("")
+
+        markdown = '\n'.join(lines)
+
+        return {
+            "name": program["name"],
+            "level": program["level"],
+            "goal": program["goal"],
+            "duration": f"{program['duration_weeks']} weeks",
+            "frequency": f"{program['days_per_week']} days/week",
+            "equipment": program["equipment"],
+            "description": program["description"],
+            "workouts": formatted_workouts,
+            "markdown": markdown
+        }
+
     def find_workouts(
         self,
         goal: Literal["build strength", "fat loss", "flexibility", "endurance"],
@@ -296,29 +408,57 @@ class FitnessService(McpServer):
     ) -> list[dict]:
         """Find workout programs matching goals and fitness level.
 
-        CRITICAL: goal must be EXACTLY (with spaces, not underscores):
-        - "build strength" (NOT "build_strength" or "strength")
-        - "fat loss" (NOT "fat_loss" or "weight_loss")
-        - "flexibility" (NOT "flex")
-        - "endurance" (NOT "cardio")
-
-        level must be EXACTLY: "beginner", "intermediate", or "advanced"
+        Goals: "build strength", "fat loss", "flexibility", "endurance"
+        Levels: "beginner", "intermediate", "advanced"
 
         Example: find_workouts(goal="fat loss", level="intermediate")
+
+        Returns exact matches first, then adjacent difficulty levels if no exact match.
         """
+        # Level adjacency map for fallback suggestions
+        level_order = ["beginner", "intermediate", "advanced"]
+        try:
+            level_idx = level_order.index(level)
+            adjacent_levels = []
+            if level_idx > 0:
+                adjacent_levels.append(level_order[level_idx - 1])
+            if level_idx < len(level_order) - 1:
+                adjacent_levels.append(level_order[level_idx + 1])
+        except ValueError:
+            adjacent_levels = []
 
-        matching = []
+        exact_matches = []
+        fallback_matches = []
+
         for program_id, program in WORKOUT_PROGRAMS.items():
-            if program['goal'] == goal and (program['level'] == level or program['level'] == "all levels"):
-                matching.append({
-                    "name": program['name'],
-                    "resource_uri": f"res://{program_id}",
-                    "level": program['level'],
-                    "duration": f"{program['duration_weeks']} weeks",
-                    "frequency": f"{program['days_per_week']} days/week"
-                })
+            goal_match = program['goal'] == goal
+            prog_level = program['level']
 
-        return matching
+            if goal_match:
+                if prog_level == level or prog_level == "all levels":
+                    # Exact match
+                    exact_matches.append({
+                        "name": program['name'],
+                        "resource_uri": f"res://{program_id}",
+                        "level": prog_level,
+                        "duration": f"{program['duration_weeks']} weeks",
+                        "frequency": f"{program['days_per_week']} days/week",
+                        "match_type": "exact"
+                    })
+                elif prog_level in adjacent_levels:
+                    # Adjacent level fallback
+                    fallback_matches.append({
+                        "name": program['name'],
+                        "resource_uri": f"res://{program_id}",
+                        "level": prog_level,
+                        "duration": f"{program['duration_weeks']} weeks",
+                        "frequency": f"{program['days_per_week']} days/week",
+                        "match_type": "similar_level",
+                        "note": f"Alternative at {prog_level} level"
+                    })
+
+        # Return exact matches first, then fallbacks
+        return exact_matches + fallback_matches
 
     # ===== RESOURCES (Workout Programs) =====
 

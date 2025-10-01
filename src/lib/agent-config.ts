@@ -32,7 +32,7 @@ export const DEFAULT_AGENT_CONFIG: AgentConfig = {
 
   // ReAct settings
   maxReActSteps: 5,
-  resourceSearchThreshold: 0.6,
+  resourceSearchThreshold: 0.35,  // Lowered based on observed similarity scores
 
   // Context settings
   maxContextTokens: 4096,

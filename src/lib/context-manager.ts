@@ -7,6 +7,7 @@ import type { ChatMessage } from './llm-client-interface';
 import { VectorStore, VectorSearchResult } from './vector-store';
 import { embeddingService } from './embeddings';
 import type { Tool } from './react-agent';
+import { agentConfig } from './agent-config';
 
 export interface ConversationContext {
   relevantResources: Array<{ uri: string; content: string }>;
@@ -80,8 +81,27 @@ export class ContextManager {
       // Generate query embedding with enhanced context
       const queryEmbedding = await embeddingService.embed(enhancedQuery);
 
-      // Search for similar resources (lower threshold for better recall)
-      const results = await this.vectorStore.search(queryEmbedding, maxResults, 0.5);
+      // Search for similar resources with LOWER threshold to get boost candidates
+      // We'll filter by the real threshold AFTER boosting
+      const config = agentConfig.get();
+      let results = await this.vectorStore.search(
+        queryEmbedding, 
+        maxResults * 3,  // Get even more candidates
+        0.25  // Low threshold to include resources that will be boosted
+      );
+
+      console.log(`🔍 Pre-boost: ${results.length} candidates`);
+
+      // Boost scores for resources mentioned in recent conversation
+      results = this.boostRecentlyMentionedResources(results, conversationHistory);
+
+      // NOW filter by the configured threshold (after boosting)
+      results = results.filter(r => r.score >= config.resourceSearchThreshold);
+
+      // Re-sort and limit
+      results = results
+        .sort((a, b) => b.score - a.score)
+        .slice(0, maxResults);
 
       console.log(`🔍 Found ${results.length} relevant resources (scores: ${results.map(r => r.score.toFixed(2)).join(', ')})`);
 
@@ -257,6 +277,66 @@ export class ContextManager {
     // For now, return all tools
     // In the future, could use embeddings to select most relevant
     return tools;
+  }
+
+  /**
+   * Boost scores for resources that were mentioned in recent conversation
+   * This ensures follow-up questions like "show it" retrieve the right resource
+   */
+  private boostRecentlyMentionedResources(
+    results: VectorSearchResult[],
+    history: ChatMessage[]
+  ): VectorSearchResult[] {
+    if (history.length === 0) return results;
+
+    // Extract resource URIs mentioned in last 3 messages
+    const recentMessages = history.slice(-3);
+    const mentionedUris = new Set<string>();
+    const mentionedResourceNames = new Set<string>();
+
+    for (const msg of recentMessages) {
+      const content = msg.content || '';
+      
+      // Match res:// URIs
+      const uriMatches = content.match(/res:\/\/([\w_]+)/g);
+      if (uriMatches) {
+        uriMatches.forEach(uri => {
+          mentionedUris.add(uri);
+          // Also extract the resource ID (e.g., "beginner_strength" from "res://beginner_strength")
+          const id = uri.replace('res://', '');
+          mentionedResourceNames.add(id);
+        });
+      }
+      
+      // Also check for resource IDs mentioned without the res:// prefix
+      // E.g., "beginner_strength" in the text
+      const resourceIdMatches = content.match(/\b(beginner_strength|cardio_hiit|yoga_flexibility|exercise_form_guide|nutrition_basics)\b/gi);
+      if (resourceIdMatches) {
+        resourceIdMatches.forEach(id => mentionedResourceNames.add(id.toLowerCase()));
+      }
+    }
+
+    if (mentionedUris.size === 0 && mentionedResourceNames.size === 0) {
+      return results;
+    }
+
+    console.log(`🔗 Boosting recently mentioned resources: ${Array.from(mentionedUris).join(', ')}`);
+    if (mentionedResourceNames.size > 0) {
+      console.log(`   Also matching by name: ${Array.from(mentionedResourceNames).join(', ')}`);
+    }
+
+    // Apply score boost to mentioned resources
+    return results.map(result => {
+      const resourceId = result.uri.replace('res://', '').toLowerCase();
+      const shouldBoost = mentionedUris.has(result.uri) || mentionedResourceNames.has(resourceId);
+      
+      if (shouldBoost) {
+        const boostedScore = Math.min(result.score + 0.4, 1.0);  // +0.4 boost, cap at 1.0
+        console.log(`  ↑ ${result.uri}: ${result.score.toFixed(3)} → ${boostedScore.toFixed(3)}`);
+        return { ...result, score: boostedScore };
+      }
+      return result;
+    });
   }
 
   /**
