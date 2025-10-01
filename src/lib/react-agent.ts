@@ -210,7 +210,11 @@ Action Input: {"query": "vegan"}
 - After Action Input, STOP and wait
 - Do NOT continue with "Observation:" or "Final Answer:" in same response
 - Each response should have EITHER (Action + Action Input) OR (Final Answer), NEVER BOTH
-- READ tool results word-by-word before deciding what they contain${resourceContext}`;
+- READ tool results word-by-word before deciding what they contain
+- **NEVER invent data that wasn't in tool results or context** - If you don't have information, say so honestly
+- **If a tool returns no results or empty data, acknowledge it - don't make up alternatives**
+- **External URLs, websites, or sources should ONLY come from tool results, never invented**
+- **Do NOT hallucinate studies, articles, statistics, or expert opinions - use only provided data**${resourceContext}`;
   }
 
   /**
@@ -241,6 +245,31 @@ Action Input: {"query": "vegan"}
   }
 
   /**
+   * Validate response doesn't contain hallucinated content
+   */
+  private validateResponse(response: string, step: ReActStep): void {
+    // Check for suspicious patterns that indicate hallucination
+    const hallucinationIndicators = [
+      /https?:\/\/[^\s]+/g,  // URLs (unless from tool results)
+      /\b(?:Delish|Taste of Home|AllRecipes|Food Network|Bon Appetit)\b/i,  // Popular cooking sites
+      /\b\d{4}\b.*(?:study|research|article|paper)/i,  // Year + study/research
+      /according to (?:experts|studies|research)/i,  // Fake citations
+    ];
+    
+    // If we have a Final Answer, check for invented content
+    if (step.answer) {
+      for (const pattern of hallucinationIndicators) {
+        const matches = step.answer.match(pattern);
+        if (matches) {
+          console.warn(`⚠️ Potential hallucination detected: ${matches[0]}`);
+          console.warn('This content was not in tool results or context');
+          // Log for debugging but don't block (false positives possible)
+        }
+      }
+    }
+  }
+
+  /**
    * Parse ReAct-formatted response
    */
   private parseReActResponse(response: string): ReActStep {
@@ -266,6 +295,10 @@ Action Input: {"query": "vegan"}
     const answerMatch = response.match(/Final Answer:\s*(.+?)$/is);
     if (answerMatch) {
       step.answer = answerMatch[1].trim();
+      
+      // Validate for potential hallucinations
+      this.validateResponse(response, step);
+      
       return step;
     }
 

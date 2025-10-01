@@ -18,7 +18,7 @@ export class ContextManager {
   // Token budgets (approximate - based on ~4 chars per token)
   private readonly MAX_TOKENS = 4096;
   private readonly SYSTEM_BUDGET = 1024;      // System prompt + tools
-  private readonly RESOURCES_BUDGET = 2048;   // Retrieved context (increased for full recipes)
+  private readonly RESOURCES_BUDGET = 2048;   // Retrieved context (increased for full resource content)
   private readonly HISTORY_BUDGET = 512;      // Conversation history
   private readonly RESPONSE_BUDGET = 512;     // Reserved for response
 
@@ -39,8 +39,8 @@ export class ContextManager {
   ): Promise<ConversationContext> {
     console.log('🔧 Building context for query...');
 
-    // 1. Search for relevant resources
-    const relevantResources = await this.searchRelevantResources(userQuery);
+    // 1. Search for relevant resources WITH conversation history for context enhancement
+    const relevantResources = await this.searchRelevantResources(userQuery, 5, history);
 
     // 2. Select and compress history
     const compressedHistory = this.compressHistory(history);
@@ -62,15 +62,23 @@ export class ContextManager {
    */
   private async searchRelevantResources(
     query: string,
-    maxResults = 5
+    maxResults = 5,
+    conversationHistory: ChatMessage[] = []
   ): Promise<Array<{ uri: string; content: string }>> {
     if (!this.vectorStore.isReady() || !embeddingService.isReady()) {
       return [];
     }
 
     try {
-      // Generate query embedding
-      const queryEmbedding = await embeddingService.embed(query);
+      // Enhance query with recent conversation context for better retrieval
+      const enhancedQuery = this.enhanceQueryWithContext(query, conversationHistory);
+      
+      if (enhancedQuery !== query) {
+        console.log(`🔍 Enhanced query: "${query}" → "${enhancedQuery}"`);
+      }
+
+      // Generate query embedding with enhanced context
+      const queryEmbedding = await embeddingService.embed(enhancedQuery);
 
       // Search for similar resources (lower threshold for better recall)
       const results = await this.vectorStore.search(queryEmbedding, maxResults, 0.5);
@@ -249,6 +257,77 @@ export class ContextManager {
     // For now, return all tools
     // In the future, could use embeddings to select most relevant
     return tools;
+  }
+
+  /**
+   * Enhance query with recent conversation context for better retrieval
+   * Helps with follow-up questions that have implicit references
+   */
+  private enhanceQueryWithContext(
+    query: string,
+    history: ChatMessage[]
+  ): string {
+    // Strategy 1: Check if query is a follow-up question
+    const followUpIndicators = [
+      'can i', 'can you', 'could i', 'could you',
+      'what about', 'how about', 'what if',
+      'the', 'that', 'this', 'it', 'them', 'those',
+      'substitute', 'replace', 'change', 'modify', 'instead',
+      'more about', 'tell me', 'show me'
+    ];
+    
+    const queryLower = query.toLowerCase();
+    const isFollowUp = followUpIndicators.some(indicator => 
+      queryLower.includes(indicator)
+    );
+    
+    if (!isFollowUp || history.length === 0) {
+      return query; // No enhancement needed for standalone queries
+    }
+    
+    // Strategy 2: Extract key entities from recent messages
+    // Use only last 2 messages (most recent exchange) to avoid old context pollution
+    const recentMessages = history.slice(-2); // Last exchange: user query + assistant response
+    const contextTerms: string[] = [];
+    
+    // Process messages in REVERSE order (most recent first) to prioritize recent context
+    for (let i = recentMessages.length - 1; i >= 0; i--) {
+      const msg = recentMessages[i];
+      if (msg.role === 'user' || msg.role === 'assistant') {
+        const content = msg.content || '';
+        
+        // Extract proper nouns (capitalized multi-word phrases - names, titles, entities)
+        const properNounMatches = content.match(/[A-Z][a-z]+(?:\s+[A-Z][a-z]+)+/g);
+        if (properNounMatches) {
+          contextTerms.push(...properNounMatches);
+        }
+        
+        // Extract resource URIs mentioned (MCP resources)
+        const uriMatches = content.match(/res:\/\/(\w+)/g);
+        if (uriMatches) {
+          // Convert URIs to readable names (e.g., "res://some_resource" → "some resource")
+          contextTerms.push(...uriMatches.map(uri => 
+            uri.replace('res://', '').replace(/_/g, ' ')
+          ));
+        }
+        
+        // Extract quoted text (explicit references)
+        const quotedMatches = content.match(/"([^"]+)"/g);
+        if (quotedMatches) {
+          contextTerms.push(...quotedMatches.map(q => q.replace(/"/g, '')));
+        }
+      }
+    }
+    
+    // Strategy 3: Combine query with unique context terms
+    const uniqueTerms = [...new Set(contextTerms)];
+    if (uniqueTerms.length > 0) {
+      // Use only the FIRST term (most recent) to avoid ambiguity
+      const relevantContext = uniqueTerms[0];
+      return `${query} ${relevantContext}`;
+    }
+    
+    return query;
   }
 
   /**

@@ -309,51 +309,170 @@ class ChefService(McpServer):
         except Exception as e:
             return {"error": str(e)}
 
-    def substitute_ingredient(self, ingredient: str, reason: str = "allergy") -> dict:
+    def substitute_ingredient(self, ingredient: str, reason: str = "general") -> dict:
         """Find substitutes for ingredients based on dietary restrictions or availability"""
 
         substitutions = {
+            # Vegetables
+            "zucchini": {
+                "general": ["yellow squash", "eggplant", "pattypan squash", "cucumber (raw dishes)"],
+                "unavailable": ["yellow squash", "summer squash", "eggplant"],
+                "vegan": ["yellow squash", "eggplant"],
+                "ratio": "1:1",
+                "notes": "Yellow squash is the closest match in texture and moisture content."
+            },
+            "eggplant": {
+                "general": ["zucchini", "portobello mushrooms", "firm tofu"],
+                "unavailable": ["zucchini", "large mushrooms"],
+                "vegan": ["zucchini", "portobello mushrooms"],
+                "ratio": "1:1",
+                "notes": "For similar texture, salt and drain eggplant before cooking."
+            },
+            "bell pepper": {
+                "general": ["poblano pepper", "anaheim pepper", "zucchini"],
+                "unavailable": ["poblano pepper", "banana pepper"],
+                "vegan": ["any pepper variety", "zucchini"],
+                "ratio": "1:1",
+                "notes": "Use poblano for more flavor, zucchini for similar texture."
+            },
+            "broccoli": {
+                "general": ["cauliflower", "broccolini", "green beans"],
+                "unavailable": ["cauliflower", "brussels sprouts"],
+                "vegan": ["cauliflower", "asparagus"],
+                "ratio": "1:1",
+                "notes": "Cauliflower has similar texture but milder flavor."
+            },
+            "tomato": {
+                "general": ["canned tomatoes", "tomato paste + water", "red bell pepper"],
+                "unavailable": ["canned tomatoes", "sun-dried tomatoes"],
+                "vegan": ["canned tomatoes", "red bell pepper"],
+                "ratio": "1:1 for fresh, 1 cup fresh = 1/2 cup paste + water",
+                "notes": "Canned tomatoes often have better flavor than off-season fresh."
+            },
+            # Dairy
             "egg": {
                 "vegan": ["1 tbsp flax + 3 tbsp water", "1/4 cup applesauce", "1/4 cup mashed banana"],
                 "allergy": ["1 tbsp flax + 3 tbsp water", "egg replacer powder"],
-                "unavailable": ["1/4 cup yogurt", "1/4 cup silken tofu"]
+                "unavailable": ["1/4 cup yogurt", "1/4 cup silken tofu"],
+                "ratio": "per egg",
+                "notes": "Flax egg works best for structure, applesauce for moisture."
             },
             "butter": {
                 "vegan": ["coconut oil", "vegan butter", "olive oil"],
                 "health": ["applesauce (in baking)", "greek yogurt", "avocado"],
-                "unavailable": ["margarine", "vegetable oil"]
+                "unavailable": ["margarine", "vegetable oil"],
+                "ratio": "1:1 for oils, reduce liquid slightly for applesauce",
+                "notes": "Olive oil adds flavor, coconut oil is neutral when refined."
             },
             "milk": {
                 "vegan": ["almond milk", "oat milk", "soy milk", "coconut milk"],
                 "lactose": ["lactose-free milk", "almond milk", "oat milk"],
-                "unavailable": ["water + butter", "evaporated milk + water"]
+                "unavailable": ["water + butter", "evaporated milk + water"],
+                "ratio": "1:1",
+                "notes": "Oat milk is creamiest for cooking."
             },
             "cream": {
                 "vegan": ["coconut cream", "cashew cream", "oat cream"],
                 "health": ["greek yogurt", "evaporated milk"],
-                "unavailable": ["milk + butter"]
+                "unavailable": ["milk + butter", "half-and-half"],
+                "ratio": "1:1",
+                "notes": "Coconut cream adds slight coconut flavor."
             },
+            "parmesan": {
+                "vegan": ["nutritional yeast", "vegan parmesan", "cashew parmesan"],
+                "unavailable": ["romano cheese", "asiago cheese"],
+                "lactose": ["lactose-free parmesan", "nutritional yeast"],
+                "ratio": "1:2 for nutritional yeast (use less)",
+                "notes": "Nutritional yeast adds umami flavor."
+            },
+            "cheese": {
+                "vegan": ["cashew cheese", "vegan cheese", "nutritional yeast"],
+                "lactose": ["lactose-free cheese", "nutritional yeast"],
+                "unavailable": ["tofu", "cashew cream"],
+                "ratio": "1:1 for vegan cheese",
+                "notes": "Cashew-based cheeses melt better than others."
+            },
+            # Proteins
+            "chicken": {
+                "vegan": ["tofu", "tempeh", "seitan", "chickpeas", "cauliflower"],
+                "unavailable": ["turkey", "pork"],
+                "vegetarian": ["tofu", "tempeh", "seitan"],
+                "ratio": "1:1",
+                "notes": "Firm tofu or seitan work best for texture."
+            },
+            "beef": {
+                "vegan": ["seitan", "portobello mushrooms", "lentils", "tempeh"],
+                "unavailable": ["lamb", "pork"],
+                "vegetarian": ["portobello mushrooms", "lentils"],
+                "ratio": "1:1",
+                "notes": "Seitan has the meatiest texture."
+            },
+            # Oils & Fats
+            "olive oil": {
+                "general": ["avocado oil", "grapeseed oil", "vegetable oil"],
+                "unavailable": ["canola oil", "vegetable oil"],
+                "vegan": ["any vegetable oil"],
+                "ratio": "1:1",
+                "notes": "Avocado oil has highest smoke point."
+            },
+            "coconut oil": {
+                "general": ["butter", "vegetable oil", "grapeseed oil"],
+                "vegan": ["vegetable oil", "avocado oil"],
+                "unavailable": ["butter", "margarine"],
+                "ratio": "1:1",
+                "notes": "Refined coconut oil has no coconut flavor."
+            },
+            # Baking
             "flour": {
                 "gluten-free": ["almond flour", "rice flour", "gluten-free blend"],
                 "low-carb": ["almond flour", "coconut flour"],
-                "unavailable": ["oat flour", "chickpea flour"]
+                "unavailable": ["oat flour", "chickpea flour"],
+                "ratio": "1:1 for blends, adjust for almond/coconut flour",
+                "notes": "Use established gluten-free blends for best results."
+            },
+            "sugar": {
+                "health": ["honey", "maple syrup", "stevia"],
+                "vegan": ["maple syrup", "agave nectar", "date sugar"],
+                "unavailable": ["honey", "maple syrup"],
+                "ratio": "1:1 for most, reduce liquid for syrups",
+                "notes": "Liquid sweeteners add moisture to baked goods."
             }
         }
 
-        ingredient_lower = ingredient.lower()
-        for key in substitutions:
-            if key in ingredient_lower:
-                options = substitutions[key].get(
-                    reason, substitutions[key].get("unavailable", []))
+        ingredient_lower = ingredient.lower().strip()
+
+        # Try exact match first
+        if ingredient_lower in substitutions:
+            sub_data = substitutions[ingredient_lower]
+            options = sub_data.get(reason, sub_data.get("general", []))
+            return {
+                "ingredient": ingredient,
+                "found": True,
+                "reason": reason,
+                "substitutes": options,
+                "ratio": sub_data.get("ratio", "1:1"),
+                "notes": sub_data.get("notes", "")
+            }
+
+        # Try partial matching (e.g., "red bell pepper" → "bell pepper")
+        for key, sub_data in substitutions.items():
+            if key in ingredient_lower or ingredient_lower in key:
+                options = sub_data.get(reason, sub_data.get("general", []))
                 return {
                     "ingredient": ingredient,
+                    "found": True,
+                    "matched_as": key,
                     "reason": reason,
-                    "substitutes": options
+                    "substitutes": options,
+                    "ratio": sub_data.get("ratio", "1:1"),
+                    "notes": sub_data.get("notes", "")
                 }
 
         return {
             "ingredient": ingredient,
-            "message": f"No substitutions found for '{ingredient}'. Try searching online for '{ingredient} substitute'."
+            "found": False,
+            "message": f"No substitutions found for '{ingredient}'. This might be a specialized ingredient. Consider searching online or asking a chef.",
+            "suggestion": "Try describing the ingredient's role in the recipe (e.g., 'binding agent', 'adds moisture', 'provides protein') for better suggestions."
         }
 
     def scale_recipe(self, recipe_name: str, servings: int) -> dict:

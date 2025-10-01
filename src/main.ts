@@ -45,6 +45,8 @@ interface AppState {
     failedTools: number;
     avgSteps: number;
     avgLatency: number;
+    hallucinationsDetected: number;
+    hallucinationsBlocked: number;
   };
 }
 
@@ -70,7 +72,9 @@ const state: AppState = {
     successfulTools: 0,
     failedTools: 0,
     avgSteps: 0,
-    avgLatency: 0
+    avgLatency: 0,
+    hallucinationsDetected: 0,
+    hallucinationsBlocked: 0
   }
 };
 
@@ -738,7 +742,7 @@ async function handleSendMessage() {
               console.log('💭 Thought:', step.thought);
             }
             if (step.action) {
-              console.log('🔧 Action:', step.action.tool, step.action.input);
+              console.log('🔧 Action:', step.action.tool, step.action.args);
             }
             if (step.observation) {
               console.log('👁️ Observation:', step.observation.substring(0, 100) + '...');
@@ -784,17 +788,13 @@ async function handleSendMessage() {
         });
       }
 
-      // Display final message if not streaming
-      if (!streamResponseCheckbox.checked) {
-        removeTypingIndicator(typingId);
-        const lastAssistantMsg = result.messages
-          .filter(m => m.role === 'assistant' && m.content)
-          .pop();
-        if (lastAssistantMsg) {
-          addAssistantMessage(lastAssistantMsg.content);
-        }
-      } else if (currentMessageId) {
-        finalizeMessage(currentMessageId);
+      // Display final message
+      removeTypingIndicator(typingId);
+      const lastAssistantMsg = result.messages
+        .filter(m => m.role === 'assistant' && m.content)
+        .pop();
+      if (lastAssistantMsg) {
+        addAssistantMessage(lastAssistantMsg.content);
       }
 
     } else if (state.bridge && state.isMCPLoaded) {
