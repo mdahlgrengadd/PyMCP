@@ -122,28 +122,62 @@ export class ServiceWorkerHTTPTransport implements McpTransport {
   private protocolVersion = '2025-06-18';
 
   async connect(config: { indexURL: string; swPath?: string }): Promise<void> {
-    // Register service worker
     const swPath = config.swPath || '/sw-mcp.js';
 
-    if ('serviceWorker' in navigator) {
-      this.registration = await navigator.serviceWorker.register(swPath);
-      await navigator.serviceWorker.ready;
-
-      // Initialize Pyodide via service worker
-      const initReq: JsonRpcRequest = {
-        jsonrpc: '2.0',
-        id: 'init',
-        method: 'sw/init',
-        params: { indexURL: config.indexURL }
-      };
-
-      const res = await this.sendRequest(initReq);
-      if (res.error) {
-        throw new Error(`Service worker init failed: ${res.error.message}`);
-      }
-    } else {
+    if (!('serviceWorker' in navigator)) {
       throw new Error('Service Worker not supported in this browser');
     }
+
+    console.log('Registering Service Worker:', swPath);
+
+    // Check if SW is already controlling before registration
+    const hadController = !!navigator.serviceWorker.controller;
+
+    // Register service worker (module type for static ESM imports)
+    this.registration = await navigator.serviceWorker.register(swPath, {
+      scope: '/',
+      type: 'module'
+    });
+
+    console.log('Service Worker registered');
+
+    // If this is the first registration (no controller), we need to reload
+    // because Service Workers can't intercept the page that registered them
+    if (!hadController && !navigator.serviceWorker.controller) {
+      throw new Error(
+        '⚠️ Service Worker registered for the first time.\n\n' +
+        'Please reload the page (F5 or Ctrl+R) for the Service Worker to take control.\n\n' +
+        'This is only needed once. Subsequent loads will work without reloading.'
+      );
+    }
+
+    console.log('✅ Service Worker controlling page');
+
+    // Wait for service worker to be ready
+    await navigator.serviceWorker.ready;
+
+    console.log('Service Worker ready');
+
+    // Give SW a moment to fully activate
+    await new Promise(resolve => setTimeout(resolve, 200));
+
+    // Initialize Pyodide inside the Service Worker
+    console.log('Initializing Pyodide in Service Worker...');
+
+    const initReq: JsonRpcRequest = {
+      jsonrpc: '2.0',
+      id: 'init',
+      method: 'sw/init',
+      params: { indexURL: config.indexURL }
+    };
+
+    const res = await this.sendRequest(initReq);
+
+    if (res.error) {
+      throw new Error(`Service worker init failed: ${res.error.message}`);
+    }
+
+    console.log('Pyodide initialized in Service Worker');
   }
 
   async sendRequest(req: JsonRpcRequest): Promise<JsonRpcResponse> {
