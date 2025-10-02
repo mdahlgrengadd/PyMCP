@@ -13,6 +13,14 @@ const getBtn = document.getElementById("get") as HTMLButtonElement;
 let client: PyodideMcpClient | null = null;
 let tools: McpTools | null = null;
 
+// Expose to window for console debugging
+if (import.meta.env.DEV) {
+  (window as any).mcp = {
+    get client() { return client; },
+    get tools() { return tools; },
+  };
+}
+
 function log(...args: any[]) {
   logEl.textContent +=
     args
@@ -29,7 +37,6 @@ bootBtn.onclick = async () => {
       { type: "module" }
     );
 
-    // Listen for worker errors
     worker.addEventListener("message", (e) => {
       if (e.data?.type === "error") {
         log("Worker error:", e.data.error);
