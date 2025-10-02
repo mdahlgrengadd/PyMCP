@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pnpm rebuild:*)",
+      "Bash(node:*)",
+      "Bash(pnpm electron:dev:*)",
+      "Bash(.node_modules.pnpmelectron@38.2.0node_moduleselectrondistelectron.exe .)",
+      "Bash(node_modules/.pnpm/electron@38.2.0/node_modules/electron/dist/electron.exe:*)",
+      "Bash(pnpm exec:*)",
+      "Bash(cat:*)",
+      "Bash(pnpm install:*)",
+      "Bash(npm run electron:dev:*)",
+      "Bash(./node_modules/electron/dist/electron.exe:*)",
+      "Bash(npm install:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

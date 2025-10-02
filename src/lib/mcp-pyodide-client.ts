@@ -13,7 +13,7 @@ type ToolDesc = {
 };
 
 export class PyodideMcpClient {
-  private transport: McpTransport;
+  public transport: McpTransport;  // Made public for Electron IPC
   private nextId = 0;
   private tools: ToolDesc[] = [];
   private initialized = false;
@@ -55,7 +55,8 @@ export class PyodideMcpClient {
     return this;
   }
 
-  private async call(method: string, params?: Json): Promise<any> {
+  // Made public for runtime-generated classes
+  async call(method: string, params?: Json): Promise<any> {
     const id = ++this.nextId;
     const req: JsonRpcRequest = { jsonrpc: "2.0", id, method, params };
     const res = await this.transport.sendRequest(req);
@@ -99,7 +100,8 @@ export class PyodideMcpClient {
     return this.call("prompts/get", { name, arguments: args || {} });
   }
 
-  private unwrapContent(mcpResult: any): any {
+  // Made public for runtime-generated classes
+  unwrapContent(mcpResult: any): any {
     // MCP format: { content: [{ type: "text", text: "..." }], isError?: bool }
     if (mcpResult?.isError) {
       throw new Error(mcpResult.content[0]?.text || "Tool error");

@@ -180,31 +180,34 @@ print(f"Python sys.path: {sys.path}")
 
   // Fetch Python source files from public directory
   // Note: These files should be copied to public/ during build
-  console.log(`SW (${SW_VERSION}): Fetching Python source files from /mcp_core.py and /my_server.py`);
+  console.log(`SW (${SW_VERSION}): Fetching Python source files from /mcp_core.py, /my_server.py, and /mcp_introspect.py`);
   
-  let mcpCoreResp, myServerResp;
+  let mcpCoreResp, myServerResp, mcpIntrospectResp;
   try {
-    [mcpCoreResp, myServerResp] = await Promise.all([
+    [mcpCoreResp, myServerResp, mcpIntrospectResp] = await Promise.all([
       fetch('/mcp_core.py'),
-      fetch('/my_server.py')
+      fetch('/my_server.py'),
+      fetch('/mcp_introspect.py')
     ]);
   } catch (fetchError) {
     console.error('SW: Fetch error:', fetchError);
     throw new Error(`Network error fetching Python files: ${fetchError.message}`);
   }
 
-  console.log(`SW: Fetch responses - mcp_core: ${mcpCoreResp.status}, my_server: ${myServerResp.status}`);
+  console.log(`SW: Fetch responses - mcp_core: ${mcpCoreResp.status}, my_server: ${myServerResp.status}, mcp_introspect: ${mcpIntrospectResp.status}`);
 
-  if (!mcpCoreResp.ok || !myServerResp.ok) {
-    throw new Error(`Failed to fetch Python source files (mcp_core: ${mcpCoreResp.status}, my_server: ${myServerResp.status})`);
+  if (!mcpCoreResp.ok || !myServerResp.ok || !mcpIntrospectResp.ok) {
+    throw new Error(`Failed to fetch Python source files (mcp_core: ${mcpCoreResp.status}, my_server: ${myServerResp.status}, mcp_introspect: ${mcpIntrospectResp.status})`);
   }
 
   const mcpCoreSrc = await mcpCoreResp.text();
   const myServerSrc = await myServerResp.text();
+  const mcpIntrospectSrc = await mcpIntrospectResp.text();
 
   // Write Python files to Pyodide virtual filesystem
   pyodide.FS.writeFile('/mcp_core.py', mcpCoreSrc);
   pyodide.FS.writeFile('/my_server.py', myServerSrc);
+  pyodide.FS.writeFile('/mcp_introspect.py', mcpIntrospectSrc);
   console.log('SW: Python files written to Pyodide FS');
 
   // Boot the MCP server (create instance and expose handler)

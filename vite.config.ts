@@ -8,5 +8,20 @@ export default defineConfig({
   assetsInclude: ['**/*.py'],
 
   // Serve Service Worker from public directory
-  publicDir: 'public'
+  publicDir: 'public',
+
+  // Build configuration for Electron
+  base: './',
+  build: {
+    outDir: 'dist',
+    emptyOutDir: true,
+    rollupOptions: {
+      output: {
+        // Keep file names predictable for Electron
+        entryFileNames: 'assets/[name].js',
+        chunkFileNames: 'assets/[name].js',
+        assetFileNames: 'assets/[name].[ext]'
+      }
+    }
+  }
 });

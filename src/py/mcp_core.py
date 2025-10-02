@@ -234,6 +234,16 @@ class McpServer(metaclass=McpMeta):
             self._initialized = True
             return None  # Notifications don't get responses
 
+        # INTROSPECTION: server metadata for client generation (before init check)
+        if method == "server/introspect":
+            try:
+                from mcp_introspect import introspect_server
+                schema = introspect_server(self)
+                return {"jsonrpc": "2.0", "id": req_id, "result": schema}
+            except Exception as e:
+                return {"jsonrpc": "2.0", "id": req_id,
+                        "error": {"code": -32603, "message": f"Introspection error: {str(e)}"}}
+
         # ENFORCE INITIALIZATION
         if not self._initialized:
             return {"jsonrpc": "2.0", "id": req_id,

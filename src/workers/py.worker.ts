@@ -3,6 +3,7 @@
 
 import mcpCoreSrc from '../py/mcp_core.py?raw';
 import myServerSrc from '../py/my_server.py?raw';
+import mcpIntrospectSrc from '../py/mcp_introspect.py?raw';
 
 declare const self: DedicatedWorkerGlobalScope;
 
@@ -33,6 +34,7 @@ self.onmessage = async (e: MessageEvent) => {
     // Write our Python modules and boot
     pyodide.FS.writeFile('mcp_core.py', mcpCoreSrc);
     pyodide.FS.writeFile('my_server.py', myServerSrc);
+    pyodide.FS.writeFile('mcp_introspect.py', mcpIntrospectSrc);
 
     await pyodide.runPythonAsync(`
 from my_server import boot
