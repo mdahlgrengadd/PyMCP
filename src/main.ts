@@ -16,8 +16,12 @@ let tools: McpTools | null = null;
 // Expose to window for console debugging
 if (import.meta.env.DEV) {
   (window as any).mcp = {
-    get client() { return client; },
-    get tools() { return tools; },
+    get client() {
+      return client;
+    },
+    get tools() {
+      return tools;
+    },
   };
 }
 
