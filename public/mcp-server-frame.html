@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>MCP Server Frame</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: system-ui, -apple-system, sans-serif;
+      font-size: 12px;
+      color: #666;
+    }
+    .status {
+      padding: 8px;
+      text-align: center;
+    }
+    .loading { background: #fff3cd; }
+    .ready { background: #d1e7dd; color: #0f5132; }
+    .error { background: #f8d7da; color: #842029; }
+  </style>
+</head>
+<body>
+  <div id="status" class="status loading">Initializing MCP Server...</div>
+  
+  <script type="module">
+    import { PyodideMcpClient } from '/src/lib/mcp-pyodide-client.ts';
+    import { ServiceWorkerHTTPTransport } from '/src/lib/mcp-transport.ts';
+
+    let mcpClient = null;
+    const statusEl = document.getElementById('status');
+
+    function updateStatus(message, type = 'loading') {
+      statusEl.textContent = message;
+      statusEl.className = `status ${type}`;
+    }
+
+      // Listen for messages from parent
+      window.addEventListener('message', async (event) => {
+        const { type, data } = event.data;
+
+        if (type === 'mcp-request') {
+          // Forward MCP request to Service Worker
+          try {
+            const { requestId, request } = data;
+            
+            const response = await fetch('/mcp', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(request)
+            });
+            
+            const result = await response.json();
+            
+            // Send response back to parent
+            window.parent.postMessage({
+              type: 'mcp-response',
+              data: { requestId, response: result }
+            }, '*');
+          } catch (error) {
+            window.parent.postMessage({
+              type: 'mcp-response',
+              data: { requestId: data.requestId, error: error.message }
+            }, '*');
+          }
+        } else if (type === 'init-mcp-server') {
+        try {
+          updateStatus('Registering Service Worker...', 'loading');
+          
+          const { serverUrl, indexURL } = data;
+          
+          console.log('[iframe] Received config:', { serverUrl, indexURL });
+          
+          // Create transport with NO iframe nesting (useIframe: false)
+          // This iframe IS the host, so register SW directly here
+          const transport = new ServiceWorkerHTTPTransport({ useIframe: false });
+          mcpClient = new PyodideMcpClient(transport);
+          
+          console.log('[iframe] Starting MCP initialization with indexURL:', indexURL);
+          
+          // Initialize - PyodideMcpClient.init expects just the indexURL string
+          // But transport.connect needs the config object
+          await transport.connect({ indexURL, serverUrl });
+          
+          // Now do MCP handshake (without connecting transport again)
+          const initResult = await transport.sendRequest({
+            jsonrpc: '2.0',
+            id: 1,
+            method: 'initialize',
+            params: {
+              protocolVersion: '2025-06-18',
+              capabilities: { tools: {}, experimental: { validation: true }},
+              clientInfo: { name: 'PyodideMCP-iframe', version: '0.1.0' }
+            }
+          });
+          
+          console.log('[iframe] MCP initialize result:', initResult);
+          
+          // Send notification (no response expected)
+          await transport.sendNotification({
+            jsonrpc: '2.0',
+            method: 'notifications/initialized'
+          });
+          
+          console.log('[iframe] MCP initialization complete');
+          updateStatus('✓ MCP Server Ready', 'ready');
+          
+          // Notify parent that server is ready
+          window.parent.postMessage({
+            type: 'mcp-server-ready',
+            data: { success: true }
+          }, '*');
+          
+        } catch (error) {
+          console.error('[iframe] MCP Server init error:', error);
+          updateStatus('✗ Init Failed: ' + error.message, 'error');
+          
+          window.parent.postMessage({
+            type: 'mcp-server-error',
+            data: { error: error.message }
+          }, '*');
+        }
+      } else if (type === 'mcp-server-call') {
+        // Forward MCP calls from parent
+        try {
+          const { method, params, id } = data;
+          const result = await mcpClient.call(method, params);
+          
+          window.parent.postMessage({
+            type: 'mcp-server-response',
+            data: { id, result }
+          }, '*');
+        } catch (error) {
+          window.parent.postMessage({
+            type: 'mcp-server-response',
+            data: { id: data.id, error: error.message }
+          }, '*');
+        }
+      }
+    });
+
+    // Notify parent that frame is loaded and ready
+    console.log('[iframe] Frame loaded, awaiting init command...');
+    updateStatus('Frame loaded, awaiting init...', 'loading');
+    window.parent.postMessage({ type: 'mcp-frame-loaded' }, '*');
+  </script>
+</body>
+</html>
+

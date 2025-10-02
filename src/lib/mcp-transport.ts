@@ -115,14 +115,34 @@ export class WebWorkerTransport implements McpTransport {
 /**
  * Service Worker HTTP transport - communicates via HTTP requests
  * This provides an HTTP-like interface while keeping everything client-side
+ * 
+ * When useIframe is true, registers SW in a hidden iframe to avoid page reloads
  */
 export class ServiceWorkerHTTPTransport implements McpTransport {
+  private useIframe: boolean;
   private baseUrl = '/mcp';
   private registration?: ServiceWorkerRegistration;
   private protocolVersion = '2025-06-18';
+  private iframe?: HTMLIFrameElement;
+  public isIframeInitialized: boolean = false; // Track if iframe already did handshake
 
-  async connect(config: { indexURL: string; swPath?: string }): Promise<void> {
-    const swPath = config.swPath || '/sw-mcp.js';
+  constructor(options?: { useIframe?: boolean }) {
+    this.useIframe = options?.useIframe ?? true; // Default to iframe mode
+  }
+
+  async connect(config: string | { indexURL: string; swPath?: string; serverUrl?: string }): Promise<void> {
+    // Normalize config to object
+    const normalizedConfig = typeof config === 'string' 
+      ? { indexURL: config }
+      : config;
+
+    if (this.useIframe) {
+      // Use iframe mode - no page reload needed
+      return this.connectViaIframe(normalizedConfig);
+    }
+
+    // Direct SW registration (original behavior)
+    const swPath = normalizedConfig.swPath || '/sw-mcp.js';
 
     if (!('serviceWorker' in navigator)) {
       throw new Error('Service Worker not supported in this browser');
@@ -168,7 +188,7 @@ export class ServiceWorkerHTTPTransport implements McpTransport {
       jsonrpc: '2.0',
       id: 'init',
       method: 'sw/init',
-      params: { indexURL: config.indexURL }
+      params: { indexURL: normalizedConfig.indexURL }
     };
 
     const res = await this.sendRequest(initReq);
@@ -181,6 +201,12 @@ export class ServiceWorkerHTTPTransport implements McpTransport {
   }
 
   async sendRequest(req: JsonRpcRequest): Promise<JsonRpcResponse> {
+    // If using iframe mode, forward request to iframe instead of direct fetch
+    if (this.isIframeInitialized && this.iframe) {
+      return this.sendRequestViaIframe(req);
+    }
+
+    // Direct fetch to Service Worker (original behavior)
     const response = await fetch(this.baseUrl, {
       method: 'POST',
       headers: {
@@ -197,6 +223,43 @@ export class ServiceWorkerHTTPTransport implements McpTransport {
     return response.json();
   }
 
+  /**
+   * Forward MCP request to iframe, which will handle it via its Service Worker
+   */
+  private async sendRequestViaIframe(req: JsonRpcRequest): Promise<JsonRpcResponse> {
+    return new Promise((resolve, reject) => {
+      const requestId = `mcp-req-${Date.now()}-${Math.random()}`;
+      
+      const messageHandler = (event: MessageEvent) => {
+        const { type, data } = event.data;
+        
+        if (type === 'mcp-response' && data.requestId === requestId) {
+          window.removeEventListener('message', messageHandler);
+          
+          if (data.error) {
+            reject(new Error(data.error));
+          } else {
+            resolve(data.response);
+          }
+        }
+      };
+      
+      window.addEventListener('message', messageHandler);
+      
+      // Set timeout
+      setTimeout(() => {
+        window.removeEventListener('message', messageHandler);
+        reject(new Error('MCP request timeout'));
+      }, 30000);
+      
+      // Send request to iframe
+      this.iframe!.contentWindow!.postMessage({
+        type: 'mcp-request',
+        data: { requestId, request: req }
+      }, '*');
+    });
+  }
+
   async sendNotification(notif: JsonRpcNotification): Promise<void> {
     // For notifications, we don't wait for response
     fetch(this.baseUrl, {
@@ -211,7 +274,62 @@ export class ServiceWorkerHTTPTransport implements McpTransport {
     });
   }
 
+  /**
+   * Connect via iframe - SW registers in iframe context, avoiding page reload
+   */
+  private async connectViaIframe(config: { indexURL: string; serverUrl?: string }): Promise<void> {
+    console.log('🖼️ Initializing MCP Server in iframe...');
+
+    // Create or reuse iframe
+    this.iframe = document.getElementById('mcp-server-frame') as HTMLIFrameElement;
+    if (!this.iframe) {
+      this.iframe = document.createElement('iframe');
+      this.iframe.id = 'mcp-server-frame';
+      this.iframe.src = '/mcp-server-frame.html';
+      this.iframe.style.cssText = 'position: fixed; bottom: 0; right: 0; width: 300px; height: 40px; border: 1px solid #ddd; z-index: 9999;';
+      document.body.appendChild(this.iframe);
+    }
+
+    return new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        reject(new Error('iframe MCP server initialization timeout'));
+      }, 60000); // 60s timeout
+
+      const messageHandler = (event: MessageEvent) => {
+        const { type, data } = event.data;
+
+        if (type === 'mcp-frame-loaded') {
+          // Frame loaded, send init command
+          console.log('📬 Sending init command to iframe...');
+          this.iframe!.contentWindow!.postMessage({
+            type: 'init-mcp-server',
+            data: {
+              indexURL: config.indexURL,
+              serverUrl: config.serverUrl
+            }
+          }, '*');
+        } else if (type === 'mcp-server-ready') {
+          clearTimeout(timeout);
+          window.removeEventListener('message', messageHandler);
+          console.log('✅ MCP Server ready in iframe');
+          this.isIframeInitialized = true; // Mark that handshake is complete
+          resolve();
+        } else if (type === 'mcp-server-error') {
+          clearTimeout(timeout);
+          window.removeEventListener('message', messageHandler);
+          reject(new Error(`MCP Server error: ${data.error}`));
+        }
+      };
+
+      window.addEventListener('message', messageHandler);
+    });
+  }
+
   close(): void {
+    if (this.iframe) {
+      this.iframe.remove();
+      this.iframe = undefined;
+    }
     if (this.registration) {
       this.registration.unregister();
     }

@@ -76,7 +76,8 @@ bootBtn.onclick = async () => {
       }
 
       case "service-worker":
-        transport = new ServiceWorkerHTTPTransport();
+        // Use iframe mode by default to avoid page reloads
+        transport = new ServiceWorkerHTTPTransport({ useIframe: true });
         break;
 
       default:

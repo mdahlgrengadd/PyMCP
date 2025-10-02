@@ -27,28 +27,36 @@ export class PyodideMcpClient {
     // Connect transport (this handles Pyodide loading for Web Worker)
     await this.transport.connect(config);
 
-    // MCP LIFECYCLE HANDSHAKE
-    console.log("Starting MCP initialization handshake...");
+    // Check if transport is iframe-initialized (handshake already done)
+    const isIframeMode = (this.transport as any).isIframeInitialized === true;
+    
+    if (isIframeMode) {
+      console.log("✅ Using iframe mode - MCP handshake already complete");
+      this.initialized = true;
+    } else {
+      // MCP LIFECYCLE HANDSHAKE (for non-iframe transports)
+      console.log("Starting MCP initialization handshake...");
 
-    const initResult = await this.call("initialize", {
-      protocolVersion: this.protocolVersion,
-      capabilities: {
-        tools: {},
-        experimental: { validation: true },
-      },
-      clientInfo: {
-        name: "PyodideMCP",
-        version: "0.1.0",
-      },
-    });
+      const initResult = await this.call("initialize", {
+        protocolVersion: this.protocolVersion,
+        capabilities: {
+          tools: {},
+          experimental: { validation: true },
+        },
+        clientInfo: {
+          name: "PyodideMCP",
+          version: "0.1.0",
+        },
+      });
 
-    console.log("MCP initialize result:", initResult);
+      console.log("MCP initialize result:", initResult);
 
-    // Send initialized notification
-    await this.notify("notifications/initialized");
-    this.initialized = true;
+      // Send initialized notification
+      await this.notify("notifications/initialized");
+      this.initialized = true;
 
-    console.log("MCP handshake complete");
+      console.log("MCP handshake complete");
+    }
 
     // Fetch tools list
     this.tools = await this.call("tools/list");
