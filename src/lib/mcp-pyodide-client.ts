@@ -73,13 +73,15 @@ export class PyodideMcpClient {
   }
 
   async listTools() {
-    return this.tools.length
-      ? this.tools
-      : (this.tools = await this.call("tools/list"));
+    if (this.tools.length) return this.tools;
+    const result = await this.call("tools/list");
+    this.tools = result.tools;
+    return this.tools;
   }
 
   async listResources(): Promise<any[]> {
-    return this.call("resources/list");
+    const result = await this.call("resources/list");
+    return result.resources;
   }
 
   async readResource(uri: string): Promise<any> {
@@ -89,7 +91,8 @@ export class PyodideMcpClient {
   }
 
   async listPrompts(): Promise<any[]> {
-    return this.call("prompts/list");
+    const result = await this.call("prompts/list");
+    return result.prompts;
   }
 
   async getPrompt(name: string, args?: any): Promise<any> {
@@ -132,7 +135,7 @@ export class PyodideMcpClient {
             `Invalid args for ${t.name}: ${JSON.stringify(validateIn.errors)}`
           );
         }
-        const mcpRes = await this.call("tools/call", { name: t.name, args });
+        const mcpRes = await this.call("tools/call", { name: t.name, arguments: args });
 
         // Unwrap MCP content format transparently
         const res = this.unwrapContent(mcpRes);

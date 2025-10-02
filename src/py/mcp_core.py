@@ -5,6 +5,7 @@ from pydantic import BaseModel, create_model
 
 Json = dict[str, Any]
 
+
 def _build_param_model(fn: Callable) -> type[BaseModel] | None:
     sig = inspect.signature(fn)
     hints = get_type_hints(fn)
@@ -13,18 +14,24 @@ def _build_param_model(fn: Callable) -> type[BaseModel] | None:
         if name == "self":
             continue
         ann = hints.get(name, Any)
-        fields[name] = (ann, ...) if p.default is inspect._empty else (ann, p.default)
-    return create_model(f"{fn.__name__}Params", **fields) if fields else None  # type: ignore
+        fields[name] = (ann, ...) if p.default is inspect._empty else (
+            ann, p.default)
+    # type: ignore
+    return create_model(f"{fn.__name__}Params", **fields) if fields else None
+
 
 def _build_result_model(fn: Callable) -> type[BaseModel] | None:
     hints = get_type_hints(fn)
     if "return" not in hints:
         return None
-    return create_model(f"{fn.__name__}Result", result=(hints["return"], ...))  # type: ignore
+    # type: ignore
+    return create_model(f"{fn.__name__}Result", result=(hints["return"], ...))
+
 
 def _doc_summary(fn: Callable) -> str | None:
     doc = inspect.getdoc(fn) or ""
     return doc.strip().splitlines()[0] if doc else None
+
 
 class _Tool:
     def __init__(self, name: str, fn: Callable):
@@ -39,6 +46,7 @@ class _Tool:
 
     def output_schema(self):
         return self.result_model.model_json_schema() if self.result_model else None
+
 
 class _Resource:
     def __init__(self, uri: str, name: str, description: str, mimeType: str, fn: Callable):
@@ -65,12 +73,14 @@ class _Resource:
         match = re.match(pattern, uri)
         return match.groupdict() if match else None
 
+
 class _Prompt:
     def __init__(self, name: str, description: str, arguments: list, fn: Callable):
         self.name = name
         self.description = description
         self.arguments = arguments
         self.fn = fn
+
 
 class McpMeta(type):
     def __new__(mcls, name, bases, ns, **kw):
@@ -143,6 +153,7 @@ class McpMeta(type):
         setattr(cls, "__mcp_prompts__", prompts)
         return cls
 
+
 class McpServer(metaclass=McpMeta):
     def __init__(self):
         self._initialized = False
@@ -210,7 +221,7 @@ class McpServer(metaclass=McpMeta):
             if client_version != self._protocol_version:
                 return {"jsonrpc": "2.0", "id": req_id,
                         "error": {"code": -32602,
-                                 "message": f"Protocol version mismatch: {client_version}"}}
+                                  "message": f"Protocol version mismatch: {client_version}"}}
 
             return {"jsonrpc": "2.0", "id": req_id, "result": {
                 "protocolVersion": self._protocol_version,
@@ -229,11 +240,11 @@ class McpServer(metaclass=McpMeta):
                     "error": {"code": -32002, "message": "Server not initialized"}}
 
         if method == "tools/list":
-            return {"jsonrpc": "2.0", "id": req_id, "result": self._tools_list()}
+            return {"jsonrpc": "2.0", "id": req_id, "result": {"tools": self._tools_list()}}
 
         # RESOURCES
         if method == "resources/list":
-            return {"jsonrpc": "2.0", "id": req_id, "result": self._resources_list()}
+            return {"jsonrpc": "2.0", "id": req_id, "result": {"resources": self._resources_list()}}
 
         if method == "resources/read":
             uri = req.get("params", {}).get("uri")
@@ -275,7 +286,7 @@ class McpServer(metaclass=McpMeta):
 
         # PROMPTS
         if method == "prompts/list":
-            return {"jsonrpc": "2.0", "id": req_id, "result": self._prompts_list()}
+            return {"jsonrpc": "2.0", "id": req_id, "result": {"prompts": self._prompts_list()}}
 
         if method == "prompts/get":
             params = req.get("params", {})
@@ -303,7 +314,7 @@ class McpServer(metaclass=McpMeta):
         if method == "tools/call":
             p = req.get("params") or {}
             name = p.get("name")
-            args = p.get("args") or {}
+            args = p.get("arguments") or {}
             tool = self.__mcp_tools__.get(name)
 
             if not tool:
@@ -311,7 +322,8 @@ class McpServer(metaclass=McpMeta):
                         "error": {"code": -32601, "message": f"Unknown tool: {name}"}}
 
             try:
-                parsed = tool.params_model(**args).model_dump() if tool.params_model else {}
+                parsed = tool.params_model(
+                    **args).model_dump() if tool.params_model else {}
                 fn = getattr(self, tool.name)
                 res = fn(**parsed)
 
@@ -327,7 +339,8 @@ class McpServer(metaclass=McpMeta):
                     text_content = json.dumps(result_json['result'])
                 else:
                     # For primitives
-                    text_content = json.dumps(res) if not isinstance(res, str) else res
+                    text_content = json.dumps(
+                        res) if not isinstance(res, str) else res
 
                 return {"jsonrpc": "2.0", "id": req_id, "result": {
                     "content": [{"type": "text", "text": text_content}]
@@ -343,12 +356,14 @@ class McpServer(metaclass=McpMeta):
         return {"jsonrpc": "2.0", "id": req_id,
                 "error": {"code": -32601, "message": f"Unknown method: {method}"}}
 
+
 def attach_pyodide_worker(server: McpServer):
     try:
         import js
         from pyodide.ffi import create_proxy, to_js
     except Exception as e:
-        raise RuntimeError("attach_pyodide_worker must run inside Pyodide") from e
+        raise RuntimeError(
+            "attach_pyodide_worker must run inside Pyodide") from e
 
     async def onmessage(ev):
         data = ev.data.to_py() if hasattr(ev.data, "to_py") else ev.data
@@ -359,5 +374,6 @@ def attach_pyodide_worker(server: McpServer):
 
     js.self.onmessage = create_proxy(onmessage)
     # Convert Python dict to JavaScript object for postMessage
-    ready_msg = to_js({"type": "mcp.ready"}, dict_converter=js.Object.fromEntries)
+    ready_msg = to_js({"type": "mcp.ready"},
+                      dict_converter=js.Object.fromEntries)
     js.postMessage(ready_msg)
