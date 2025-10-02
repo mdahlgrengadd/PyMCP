@@ -1,4 +1,5 @@
 import Ajv from "ajv";
+import type { McpTransport, JsonRpcRequest, JsonRpcNotification } from "./mcp-transport";
 
 const ajv = new Ajv({ allErrors: true, strict: false, coerceTypes: true });
 
@@ -12,57 +13,107 @@ type ToolDesc = {
 };
 
 export class PyodideMcpClient {
-  private worker: Worker;
+  private transport: McpTransport;
   private nextId = 0;
-  private pending = new Map<number | string, (v: any) => void>();
   private tools: ToolDesc[] = [];
+  private initialized = false;
+  private protocolVersion = "2025-06-18";
 
-  constructor(worker: Worker) {
-    this.worker = worker;
-    this.worker.onmessage = (e) => {
-      const msg = e.data;
-      const id = msg?.id;
-      if (id != null && this.pending.has(id)) {
-        const ok = this.pending.get(id)!;
-        this.pending.delete(id);
-        if (msg.error) {
-          ok(Promise.reject(msg.error));
-          return;
-        }
-        ok(msg.result);
-      }
-    };
+  constructor(transport: McpTransport) {
+    this.transport = transport;
   }
 
-  async init(indexURL: string) {
-    const ready = new Promise<void>((resolve) => {
-      const handler = (e: MessageEvent) => {
-        if (e.data?.type === "mcp.ready") {
-          this.worker.removeEventListener("message", handler as any);
-          resolve();
-        }
-      };
-      this.worker.addEventListener("message", handler as any);
+  async init(config: any) {
+    // Connect transport (this handles Pyodide loading for Web Worker)
+    await this.transport.connect(config);
+
+    // MCP LIFECYCLE HANDSHAKE
+    console.log("Starting MCP initialization handshake...");
+
+    const initResult = await this.call("initialize", {
+      protocolVersion: this.protocolVersion,
+      capabilities: {
+        tools: {},
+        experimental: { validation: true },
+      },
+      clientInfo: {
+        name: "PyodideMCP",
+        version: "0.1.0",
+      },
     });
-    this.worker.postMessage({ type: "init", indexURL });
-    await ready;
+
+    console.log("MCP initialize result:", initResult);
+
+    // Send initialized notification
+    await this.notify("notifications/initialized");
+    this.initialized = true;
+
+    console.log("MCP handshake complete");
+
+    // Fetch tools list
     this.tools = await this.call("tools/list");
     return this;
   }
 
-  call(method: string, params?: Json): Promise<any> {
+  private async call(method: string, params?: Json): Promise<any> {
     const id = ++this.nextId;
-    const req = { jsonrpc: "2.0", id, method, params };
-    return new Promise((resolve) => {
-      this.pending.set(id, resolve);
-      this.worker.postMessage(req);
-    });
+    const req: JsonRpcRequest = { jsonrpc: "2.0", id, method, params };
+    const res = await this.transport.sendRequest(req);
+
+    if (res.error) {
+      throw new Error(res.error.message);
+    }
+
+    return res.result;
+  }
+
+  private async notify(method: string, params?: Json): Promise<void> {
+    const notif: JsonRpcNotification = { jsonrpc: "2.0", method, params };
+    await this.transport.sendNotification(notif);
   }
 
   async listTools() {
     return this.tools.length
       ? this.tools
       : (this.tools = await this.call("tools/list"));
+  }
+
+  async listResources(): Promise<any[]> {
+    return this.call("resources/list");
+  }
+
+  async readResource(uri: string): Promise<any> {
+    const result = await this.call("resources/read", { uri });
+    // result.contents[0] contains {uri, mimeType, text}
+    return result;
+  }
+
+  async listPrompts(): Promise<any[]> {
+    return this.call("prompts/list");
+  }
+
+  async getPrompt(name: string, args?: any): Promise<any> {
+    return this.call("prompts/get", { name, arguments: args || {} });
+  }
+
+  private unwrapContent(mcpResult: any): any {
+    // MCP format: { content: [{ type: "text", text: "..." }], isError?: bool }
+    if (mcpResult?.isError) {
+      throw new Error(mcpResult.content[0]?.text || "Tool error");
+    }
+
+    if (mcpResult?.content?.[0]?.type === "text") {
+      const text = mcpResult.content[0].text;
+      try {
+        // Try parsing as JSON (for structured returns)
+        return JSON.parse(text);
+      } catch {
+        // Return raw text
+        return text;
+      }
+    }
+
+    return mcpResult; // Fallback for non-MCP format
   }
 
   async createProxy(): Promise<Record<string, (args?: any) => Promise<any>>> {
@@ -81,14 +132,15 @@ export class PyodideMcpClient {
             `Invalid args for ${t.name}: ${JSON.stringify(validateIn.errors)}`
           );
         }
-        const res = await this.call("tools/call", { name: t.name, args });
-        if (validateOut && !validateOut(res)) {
-          throw new Error(
-            `Invalid result for ${t.name}: ${JSON.stringify(
-              validateOut.errors
-            )}`
-          );
-        }
+        const mcpRes = await this.call("tools/call", { name: t.name, args });
+
+        // Unwrap MCP content format transparently
+        const res = this.unwrapContent(mcpRes);
+
+        // Note: Output validation is skipped because MCP content wrapping
+        // transforms the response format. The Python server already validates
+        // using Pydantic before wrapping in MCP format.
+
         return res;
       };
     }

@@ -40,19 +40,135 @@ class _Tool:
     def output_schema(self):
         return self.result_model.model_json_schema() if self.result_model else None
 
+class _Resource:
+    def __init__(self, uri: str, name: str, description: str, mimeType: str, fn: Callable):
+        self.uri = uri
+        self.name = name
+        self.description = description
+        self.mimeType = mimeType
+        self.fn = fn
+        self.uri_params = self._extract_uri_params(uri)
+
+    def _extract_uri_params(self, uri: str) -> list[str]:
+        '''Extract {param} placeholders from URI template.'''
+        import re
+        return re.findall(r'\{(\w+)\}', uri)
+
+    def matches_uri(self, uri: str) -> dict[str, str] | None:
+        '''Check if URI matches this resource template and extract params.'''
+        import re
+        # Convert URI template to regex pattern
+        pattern = re.escape(self.uri).replace(r'\{', '{').replace(r'\}', '}')
+        pattern = re.sub(r'\{(\w+)\}', r'(?P<\1>[^/]+)', pattern)
+        pattern = f'^{pattern}$'
+
+        match = re.match(pattern, uri)
+        return match.groupdict() if match else None
+
+class _Prompt:
+    def __init__(self, name: str, description: str, arguments: list, fn: Callable):
+        self.name = name
+        self.description = description
+        self.arguments = arguments
+        self.fn = fn
+
 class McpMeta(type):
     def __new__(mcls, name, bases, ns, **kw):
         cls = super().__new__(mcls, name, bases, ns, **kw)
         tools: dict[str, _Tool] = {}
+        resources: dict[str, _Resource] = {}
+        prompts: dict[str, _Prompt] = {}
+
         for attr, val in ns.items():
-            if attr.startswith("_"):
+            if not callable(val) or attr.startswith("_"):
                 continue
-            if callable(val):
+
+            # Convention: resource_* methods become resources
+            if attr.startswith("resource_"):
+                resource_name = attr[9:]  # Strip 'resource_' prefix
+
+                # Build URI from method name and parameters
+                sig = inspect.signature(val)
+                params = [p for p in sig.parameters.keys() if p != 'self']
+
+                if params:
+                    # Parameterized resource: res://name/{param}
+                    uri = f"res://{resource_name}/{{{params[0]}}}"
+                else:
+                    # Static resource: res://name
+                    uri = f"res://{resource_name}"
+
+                # Infer mimeType from return type hint
+                hints = get_type_hints(val)
+                return_type = hints.get('return', str)
+                mimeType = "application/json" if return_type == dict else "text/plain"
+
+                resources[uri] = _Resource(
+                    uri=uri,
+                    name=resource_name.replace('_', ' ').title(),
+                    description=_doc_summary(val) or "",
+                    mimeType=mimeType,
+                    fn=val
+                )
+
+            # Convention: prompt_* methods become prompts
+            elif attr.startswith("prompt_"):
+                prompt_name = attr[7:]  # Strip 'prompt_' prefix
+
+                # Infer arguments from method signature
+                sig = inspect.signature(val)
+                arguments = []
+                for param_name, param in sig.parameters.items():
+                    if param_name == 'self':
+                        continue
+                    arguments.append({
+                        "name": param_name,
+                        "description": f"{param_name.replace('_', ' ')} parameter",
+                        "required": param.default == inspect._empty
+                    })
+
+                prompts[prompt_name] = _Prompt(
+                    name=prompt_name,
+                    description=_doc_summary(val) or "",
+                    arguments=arguments,
+                    fn=val
+                )
+
+            # Default: plain method is a tool
+            else:
                 tools[attr] = _Tool(attr, val)
+
         setattr(cls, "__mcp_tools__", tools)
+        setattr(cls, "__mcp_resources__", resources)
+        setattr(cls, "__mcp_prompts__", prompts)
         return cls
 
 class McpServer(metaclass=McpMeta):
+    def __init__(self):
+        self._initialized = False
+        self._protocol_version = "2025-06-18"
+
+    def _server_info(self) -> Json:
+        return {
+            "name": self.__class__.__name__,
+            "version": "0.1.0"
+        }
+
+    def _capabilities(self) -> Json:
+        caps = {}
+
+        if self.__mcp_tools__:
+            caps["tools"] = {"listChanged": True}
+
+        if self.__mcp_resources__:
+            caps["resources"] = {"subscribe": False, "listChanged": True}
+
+        if self.__mcp_prompts__:
+            caps["prompts"] = {"listChanged": True}
+
+        caps["experimental"] = {"validation": True}
+        return caps
+
     def _tools_list(self) -> list[Json]:
         return [{
             "name": name,
@@ -62,31 +178,169 @@ class McpServer(metaclass=McpMeta):
             "version": 1,
         } for name, t in self.__mcp_tools__.items()]
 
-    async def _handle_request(self, req: Json) -> Json:
+    def _resources_list(self) -> list[Json]:
+        return [{
+            "uri": r.uri,
+            "name": r.name,
+            "description": r.description,
+            "mimeType": r.mimeType
+        } for r in self.__mcp_resources__.values()]
+
+    def _prompts_list(self) -> list[Json]:
+        return [{
+            "name": p.name,
+            "description": p.description,
+            "arguments": p.arguments
+        } for p in self.__mcp_prompts__.values()]
+
+    async def _handle_request(self, req: Json) -> Json | None:
         if req.get("jsonrpc") != "2.0":
             return {"jsonrpc": "2.0", "id": req.get("id"),
                     "error": {"code": -32600, "message": "Invalid JSON-RPC"}}
+
         method = req.get("method")
+        req_id = req.get("id")
+
+        # MCP LIFECYCLE: initialize
+        if method == "initialize":
+            params = req.get("params", {})
+            client_version = params.get("protocolVersion")
+
+            # Version negotiation
+            if client_version != self._protocol_version:
+                return {"jsonrpc": "2.0", "id": req_id,
+                        "error": {"code": -32602,
+                                 "message": f"Protocol version mismatch: {client_version}"}}
+
+            return {"jsonrpc": "2.0", "id": req_id, "result": {
+                "protocolVersion": self._protocol_version,
+                "capabilities": self._capabilities(),
+                "serverInfo": self._server_info()
+            }}
+
+        # MCP LIFECYCLE: initialized notification
+        if method == "notifications/initialized":
+            self._initialized = True
+            return None  # Notifications don't get responses
+
+        # ENFORCE INITIALIZATION
+        if not self._initialized:
+            return {"jsonrpc": "2.0", "id": req_id,
+                    "error": {"code": -32002, "message": "Server not initialized"}}
+
         if method == "tools/list":
-            return {"jsonrpc": "2.0", "id": req.get("id"), "result": self._tools_list()}
+            return {"jsonrpc": "2.0", "id": req_id, "result": self._tools_list()}
+
+        # RESOURCES
+        if method == "resources/list":
+            return {"jsonrpc": "2.0", "id": req_id, "result": self._resources_list()}
+
+        if method == "resources/read":
+            uri = req.get("params", {}).get("uri")
+            if not uri:
+                return {"jsonrpc": "2.0", "id": req_id,
+                        "error": {"code": -32602, "message": "Missing uri parameter"}}
+
+            # Find matching resource
+            for resource in self.__mcp_resources__.values():
+                params = resource.matches_uri(uri)
+                if params is not None:
+                    try:
+                        fn = getattr(self, resource.fn.__name__)
+                        content = fn(**params) if params else fn()
+
+                        if inspect.isawaitable(content):
+                            content = await content
+
+                        # Format as MCP resource content
+                        import json
+                        if isinstance(content, dict):
+                            text = json.dumps(content)
+                        else:
+                            text = str(content)
+
+                        return {"jsonrpc": "2.0", "id": req_id, "result": {
+                            "contents": [{
+                                "uri": uri,
+                                "mimeType": resource.mimeType,
+                                "text": text
+                            }]
+                        }}
+                    except Exception as e:
+                        return {"jsonrpc": "2.0", "id": req_id,
+                                "error": {"code": -32603, "message": str(e)}}
+
+            return {"jsonrpc": "2.0", "id": req_id,
+                    "error": {"code": -32602, "message": f"Unknown resource: {uri}"}}
+
+        # PROMPTS
+        if method == "prompts/list":
+            return {"jsonrpc": "2.0", "id": req_id, "result": self._prompts_list()}
+
+        if method == "prompts/get":
+            params = req.get("params", {})
+            name = params.get("name")
+            args = params.get("arguments", {})
+
+            prompt = self.__mcp_prompts__.get(name)
+            if not prompt:
+                return {"jsonrpc": "2.0", "id": req_id,
+                        "error": {"code": -32602, "message": f"Unknown prompt: {name}"}}
+
+            try:
+                fn = getattr(self, prompt.fn.__name__)
+                result = fn(**args)
+
+                if inspect.isawaitable(result):
+                    result = await result
+
+                return {"jsonrpc": "2.0", "id": req_id, "result": result}
+            except Exception as e:
+                return {"jsonrpc": "2.0", "id": req_id,
+                        "error": {"code": -32603, "message": str(e)}}
+
+        # MCP COMPLIANT tools/call with content wrapper
         if method == "tools/call":
             p = req.get("params") or {}
             name = p.get("name")
             args = p.get("args") or {}
             tool = self.__mcp_tools__.get(name)
+
             if not tool:
-                return {"jsonrpc": "2.0", "id": req.get("id"),
+                return {"jsonrpc": "2.0", "id": req_id,
                         "error": {"code": -32601, "message": f"Unknown tool: {name}"}}
-            parsed = tool.params_model(**args).model_dump() if tool.params_model else {}
-            fn = getattr(self, tool.name)
-            res = fn(**parsed)
-            if inspect.isawaitable(res):
-                import asyncio
-                res = await res
-            if tool.result_model:
-                res = tool.result_model(result=res).model_dump()
-            return {"jsonrpc": "2.0", "id": req.get("id"), "result": res}
-        return {"jsonrpc": "2.0", "id": req.get("id"),
+
+            try:
+                parsed = tool.params_model(**args).model_dump() if tool.params_model else {}
+                fn = getattr(self, tool.name)
+                res = fn(**parsed)
+
+                if inspect.isawaitable(res):
+                    import asyncio
+                    res = await res
+
+                # Wrap result in MCP content format
+                import json
+                if tool.result_model:
+                    # For Pydantic models, serialize to JSON
+                    result_json = tool.result_model(result=res).model_dump()
+                    text_content = json.dumps(result_json['result'])
+                else:
+                    # For primitives
+                    text_content = json.dumps(res) if not isinstance(res, str) else res
+
+                return {"jsonrpc": "2.0", "id": req_id, "result": {
+                    "content": [{"type": "text", "text": text_content}]
+                }}
+
+            except Exception as e:
+                # Error in MCP format
+                return {"jsonrpc": "2.0", "id": req_id, "result": {
+                    "content": [{"type": "text", "text": str(e)}],
+                    "isError": True
+                }}
+
+        return {"jsonrpc": "2.0", "id": req_id,
                 "error": {"code": -32601, "message": f"Unknown method: {method}"}}
 
 def attach_pyodide_worker(server: McpServer):
@@ -99,7 +353,9 @@ def attach_pyodide_worker(server: McpServer):
     async def onmessage(ev):
         data = ev.data.to_py() if hasattr(ev.data, "to_py") else ev.data
         resp = await server._handle_request(data)
-        js.postMessage(to_js(resp, dict_converter=js.Object.fromEntries))
+        # Only post message if there's a response (notifications return None)
+        if resp is not None:
+            js.postMessage(to_js(resp, dict_converter=js.Object.fromEntries))
 
     js.self.onmessage = create_proxy(onmessage)
     # Convert Python dict to JavaScript object for postMessage

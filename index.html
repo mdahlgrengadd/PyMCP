@@ -13,17 +13,43 @@
   </head>
   <body>
     <h1>MCP over Pyodide (Python) ⇄ TypeScript</h1>
-    <p>This demo loads a Python class in a Web Worker with Pyodide and exposes its methods as JSON‑RPC tools.</p>
+    <p>This demo loads a Python class in Pyodide and exposes its methods as MCP-compliant tools via JSON‑RPC.</p>
+
+    <div style="margin-bottom: 1rem;">
+      <label><strong>Transport:</strong></label><br>
+      <input type="radio" id="transport-worker" name="transport" value="worker" checked>
+      <label for="transport-worker">Web Worker (Direct RPC)</label>
+      &nbsp;&nbsp;
+      <input type="radio" id="transport-sw" name="transport" value="service-worker" disabled>
+      <label for="transport-sw">Service Worker (HTTP) - Coming Soon</label>
+    </div>
+
     <div>
       <label>Pyodide indexURL (CDN):</label>
       <input id="idx" style="width: 36rem" value="https://cdn.jsdelivr.net/pyodide/v0.26.4/full/" />
       <button id="boot">Boot Pyodide</button>
     </div>
     <div style="margin-top: 1rem;">
+      <strong>Tools:</strong><br>
       <button id="list">tools/list</button>
       <button id="echo">echo('hello', upper=True)</button>
       <button id="add">add(1.5, 2.25)</button>
       <button id="get">get_item(7)</button>
+    </div>
+
+    <div style="margin-top: 1rem;">
+      <strong>Resources:</strong><br>
+      <button id="list-resources">resources/list</button>
+      <button id="read-help">read res://help</button>
+      <button id="read-stats">read res://stats</button>
+      <button id="read-doc">read res://doc/doc1</button>
+    </div>
+
+    <div style="margin-top: 1rem;">
+      <strong>Prompts:</strong><br>
+      <button id="list-prompts">prompts/list</button>
+      <button id="get-summarize">get summarize(doc_id='doc1')</button>
+      <button id="get-review">get code_review(language='python')</button>
     </div>
     <h3>Output</h3>
     <pre class="log" id="log"></pre>
