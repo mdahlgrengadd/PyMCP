@@ -1,75 +1,53 @@
-/// Service Worker (Module) for MCP over Pyodide
+/// Service Worker for MCP over Pyodide
 /// Intercepts /mcp requests and forwards to Python MCP server running in Pyodide
 
-// Version - increment to force update
-const SW_VERSION = 'v6-module';
-
-// Default Pyodide CDN URL (used when indexURL not provided)
-const DEFAULT_PYODIDE = 'https://cdn.jsdelivr.net/pyodide/v0.26.4/full/';
-
-// Use module-type SW with static ESM imports per Pyodide docs
-import 'https://cdn.jsdelivr.net/pyodide/v0.26.4/full/pyodide.asm.js';
-import { loadPyodide } from 'https://cdn.jsdelivr.net/pyodide/v0.26.4/full/pyodide.mjs';
-
-// Minimal XMLHttpRequest shim (Pyodide expects it to exist)
-class XMLHttpRequestPolyfill {
-  constructor() { this.responseType = ''; this.response = null; this.responseText = null; this.status = 0; this.statusText = ''; this.onload = null; this.onerror = null; this._url = null; this._method = null; }
-  open(method, url) { this._method = method; this._url = url; }
-  async send() {
-    try {
-      const res = await fetch(this._url, { method: this._method });
-      this.status = res.status; this.statusText = res.statusText;
-      if (this.responseType === 'arraybuffer') this.response = await res.arrayBuffer();
-      else { this.responseText = await res.text(); this.response = this.responseText; }
-      this.onload && this.onload();
-    } catch (e) { this.onerror && this.onerror(e); }
-  }
-  setRequestHeader() {}
-}
-self.XMLHttpRequest = XMLHttpRequestPolyfill;
+// Default Pyodide CDN URL
+const DEFAULT_PYODIDE = "https://cdn.jsdelivr.net/pyodide/v0.26.4/full/";
 
 // Global state
 let pyodide = null;
 let mcpReady = false;
 let cachedIndexURL = null;
 
-console.log(`SW (${SW_VERSION}): Module SW loaded`);
+console.log("SW: Script loaded");
 
 // Install event - prepare service worker
-self.addEventListener('install', (event) => {
-  console.log('SW: Installing...');
+self.addEventListener("install", (event) => {
+  console.log("SW: Installing...");
   // Skip waiting to activate immediately
   self.skipWaiting();
 });
 
 // Activate event - take control of clients
-self.addEventListener('activate', (event) => {
-  console.log('SW: Activating...');
+self.addEventListener("activate", (event) => {
+  console.log("SW: Activating...");
   // Claim all clients immediately
   event.waitUntil(self.clients.claim());
 });
 
 // Fetch event - intercept HTTP requests
-self.addEventListener('fetch', (event) => {
+self.addEventListener("fetch", (event) => {
   const url = new URL(event.request.url);
 
   // Handle CORS preflight (OPTIONS) for /mcp
-  if (url.pathname === '/mcp' && event.request.method === 'OPTIONS') {
-    event.respondWith(new Response(null, {
-      status: 204,
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'POST, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type',
-        'Access-Control-Max-Age': '86400'
-      }
-    }));
+  if (url.pathname === "/mcp" && event.request.method === "OPTIONS") {
+    event.respondWith(
+      new Response(null, {
+        status: 204,
+        headers: {
+          "Access-Control-Allow-Origin": "*",
+          "Access-Control-Allow-Methods": "POST, OPTIONS",
+          "Access-Control-Allow-Headers": "Content-Type",
+          "Access-Control-Max-Age": "86400",
+        },
+      })
+    );
     return;
   }
 
   // Only intercept POST requests to /mcp
-  if (url.pathname === '/mcp' && event.request.method === 'POST') {
-    console.log('SW: Intercepting /mcp request');
+  if (url.pathname === "/mcp" && event.request.method === "POST") {
+    console.log("SW: Intercepting /mcp request");
     event.respondWith(handleMcpRequest(event.request));
     return;
   }
@@ -85,31 +63,35 @@ async function handleMcpRequest(request) {
   try {
     const jsonRpcRequest = await request.json();
     const { id, method, params = {} } = jsonRpcRequest;
-    console.log('SW: Received JSON-RPC request:', method);
+    console.log("SW: Received JSON-RPC request:", method);
 
     // Special method to initialize Pyodide
-    if (method === 'sw/init') {
-      const indexURL = (typeof params.indexURL === 'string' && params.indexURL)
-        ? params.indexURL
-        : (cachedIndexURL || DEFAULT_PYODIDE);
+    if (method === "sw/init") {
+      const indexURL =
+        typeof params.indexURL === "string" && params.indexURL
+          ? params.indexURL
+          : cachedIndexURL || DEFAULT_PYODIDE;
 
       await initPyodide(indexURL);
 
       cachedIndexURL = indexURL;
 
       return jsonResponse({
-        jsonrpc: '2.0',
+        jsonrpc: "2.0",
         id,
-        result: { status: 'ready', indexURL }
+        result: { status: "ready", indexURL },
       });
     }
 
     // Check if Pyodide is ready
     if (!mcpReady) {
       return jsonResponse({
-        jsonrpc: '2.0',
+        jsonrpc: "2.0",
         id,
-        error: { code: -32002, message: 'Pyodide not initialized. Call sw/init first.' }
+        error: {
+          code: -32002,
+          message: "Pyodide not initialized. Call sw/init first.",
+        },
       });
     }
 
@@ -117,16 +99,15 @@ async function handleMcpRequest(request) {
     const result = await forwardToPython(jsonRpcRequest);
 
     return jsonResponse(result);
-
   } catch (error) {
-    console.error('SW: Error handling request:', error);
+    console.error("SW: Error handling request:", error);
     return jsonResponse({
-      jsonrpc: '2.0',
+      jsonrpc: "2.0",
       id: null,
       error: {
         code: -32603,
-        message: 'Internal error: ' + (error?.message || String(error))
-      }
+        message: "Internal error: " + (error?.message || String(error)),
+      },
     });
   }
 }
@@ -137,24 +118,29 @@ async function handleMcpRequest(request) {
 async function initPyodide(indexURL) {
   // Make idempotent - return immediately if already initialized with same URL
   if (pyodide && cachedIndexURL === indexURL) {
-    console.log('SW: Pyodide already initialized');
+    console.log("SW: Pyodide already initialized");
     return;
   }
 
   // Normalize URL
-  if (!indexURL.endsWith('/')) {
-    indexURL += '/';
+  if (!indexURL.endsWith("/")) {
+    indexURL += "/";
   }
 
   cachedIndexURL = indexURL;
 
-  // Load Pyodide via static ESM (module SW cannot use importScripts or dynamic import in fetch handler)
-  console.log(`SW (${SW_VERSION}): Initializing Pyodide from:`, indexURL);
-  pyodide = await loadPyodide({ indexURL });
-  console.log('SW: Pyodide loaded');
+  // Load Pyodide script
+  console.log("SW: Loading Pyodide from:", indexURL);
+  if (typeof importScripts === "function") {
+    importScripts(indexURL + "pyodide.js");
+    pyodide = await self.loadPyodide({ indexURL });
+  } else {
+    const module = await import(indexURL + "pyodide.mjs");
+    pyodide = await module.loadPyodide({ indexURL });
+  }
 
   // Initialize Pyodide
-  console.log('SW: Pyodide loaded');
+  console.log("SW: Pyodide loaded");
 
   // Ensure Python can import our files - add "/" to sys.path
   await pyodide.runPythonAsync(`
@@ -165,53 +151,42 @@ print(f"Python sys.path: {sys.path}")
   `);
 
   // Load micropip
-  await pyodide.loadPackage('micropip');
-  console.log('SW: micropip loaded');
+  await pyodide.loadPackage("micropip");
+  console.log("SW: micropip loaded");
 
   // Install pydantic
   try {
-    await pyodide.runPythonAsync('import pydantic');
-    console.log('SW: pydantic already available');
+    await pyodide.runPythonAsync("import pydantic");
+    console.log("SW: pydantic already available");
   } catch {
-    console.log('SW: Installing pydantic...');
-    await pyodide.runPythonAsync('import micropip; await micropip.install("pydantic==2.*")');
-    console.log('SW: pydantic installed');
+    console.log("SW: Installing pydantic...");
+    await pyodide.runPythonAsync(
+      'import micropip; await micropip.install("pydantic==2.*")'
+    );
+    console.log("SW: pydantic installed");
   }
 
-  // Fetch Python source files from public directory
-  // Note: These files should be copied to public/ during build
-  console.log(`SW (${SW_VERSION}): Fetching Python source files from /mcp_core.py, /my_server.py, and /mcp_introspect.py`);
-  
-  let mcpCoreResp, myServerResp, mcpIntrospectResp;
-  try {
-    [mcpCoreResp, myServerResp, mcpIntrospectResp] = await Promise.all([
-      fetch('/mcp_core.py'),
-      fetch('/my_server.py'),
-      fetch('/mcp_introspect.py')
-    ]);
-  } catch (fetchError) {
-    console.error('SW: Fetch error:', fetchError);
-    throw new Error(`Network error fetching Python files: ${fetchError.message}`);
-  }
+  // Fetch Python source files from dev server
+  console.log("SW: Fetching Python source files...");
+  const [mcpCoreResp, myServerResp] = await Promise.all([
+    fetch("/src/py/mcp_core.py"),
+    fetch("/src/py/my_server.py"),
+  ]);
 
-  console.log(`SW: Fetch responses - mcp_core: ${mcpCoreResp.status}, my_server: ${myServerResp.status}, mcp_introspect: ${mcpIntrospectResp.status}`);
-
-  if (!mcpCoreResp.ok || !myServerResp.ok || !mcpIntrospectResp.ok) {
-    throw new Error(`Failed to fetch Python source files (mcp_core: ${mcpCoreResp.status}, my_server: ${myServerResp.status}, mcp_introspect: ${mcpIntrospectResp.status})`);
+  if (!mcpCoreResp.ok || !myServerResp.ok) {
+    throw new Error("Failed to fetch Python source files");
   }
 
   const mcpCoreSrc = await mcpCoreResp.text();
   const myServerSrc = await myServerResp.text();
-  const mcpIntrospectSrc = await mcpIntrospectResp.text();
 
   // Write Python files to Pyodide virtual filesystem
-  pyodide.FS.writeFile('/mcp_core.py', mcpCoreSrc);
-  pyodide.FS.writeFile('/my_server.py', myServerSrc);
-  pyodide.FS.writeFile('/mcp_introspect.py', mcpIntrospectSrc);
-  console.log('SW: Python files written to Pyodide FS');
+  pyodide.FS.writeFile("/mcp_core.py", mcpCoreSrc);
+  pyodide.FS.writeFile("/my_server.py", myServerSrc);
+  console.log("SW: Python files written to Pyodide FS");
 
   // Boot the MCP server (create instance and expose handler)
-  console.log('SW: Booting MCP server...');
+  console.log("SW: Booting MCP server...");
   await pyodide.runPythonAsync(`
 from my_server import MyService
 _mcp_server = MyService()
@@ -226,7 +201,7 @@ print("MCP server instance created and handler exposed")
   `);
 
   mcpReady = true;
-  console.log('SW: MCP server ready');
+  console.log("SW: MCP server ready");
 }
 
 /**
@@ -234,10 +209,12 @@ print("MCP server instance created and handler exposed")
  */
 async function forwardToPython(jsonRpcRequest) {
   // Get the Python handler function
-  const handle = pyodide.globals.get('_mcp_handle');
+  const handle = pyodide.globals.get("_mcp_handle");
 
   if (!handle) {
-    throw new Error('Python handler not found. MCP server not properly initialized.');
+    throw new Error(
+      "Python handler not found. MCP server not properly initialized."
+    );
   }
 
   try {
@@ -248,25 +225,25 @@ async function forwardToPython(jsonRpcRequest) {
     const pyResp = await handle(pyReq);
 
     // Convert Python response to JS using .toJs() with dict converter
-    const resp = pyResp?.toJs?.({ dict_converter: Object.fromEntries }) ?? pyResp;
+    const resp =
+      pyResp?.toJs?.({ dict_converter: Object.fromEntries }) ?? pyResp;
 
     // Clean up PyProxy objects to avoid memory leaks
     pyReq.destroy?.();
     pyResp?.destroy?.();
 
     return resp ?? null;
-
   } catch (error) {
-    console.error('SW: Error forwarding to Python:', error);
+    console.error("SW: Error forwarding to Python:", error);
 
     // Clean up on error
     return {
-      jsonrpc: '2.0',
+      jsonrpc: "2.0",
       id: jsonRpcRequest.id || null,
       error: {
         code: -32603,
-        message: 'Python execution error: ' + error.message
-      }
+        message: "Python execution error: " + error.message,
+      },
     };
   }
 }
@@ -277,22 +254,22 @@ async function forwardToPython(jsonRpcRequest) {
 function jsonResponse(data) {
   // Common CORS headers for all responses
   const headers = {
-    'Content-Type': 'application/json',
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type'
+    "Content-Type": "application/json",
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type",
   };
 
   // Handle notification responses (null/undefined)
   if (data === null || data === undefined) {
     return new Response(null, {
-      status: 204,  // No Content
-      headers
+      status: 204, // No Content
+      headers,
     });
   }
 
   return new Response(JSON.stringify(data), {
     status: 200,
-    headers
+    headers,
   });
 }
