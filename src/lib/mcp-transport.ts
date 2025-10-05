@@ -237,10 +237,11 @@ export class StdioTransport implements McpTransport {
 
     // This would be implemented for Node.js environments
     // For now, just a placeholder
-    const { spawn } = await import('child_process');
+    // Note: This code is not used in browser environments
+    // const { spawn } = await import('child_process');
 
     if (config.command) {
-      this.process = spawn(config.command, config.args || []);
+      // this.process = spawn(config.command, config.args || []);
 
       // Set up stdout listener for responses
       this.process.stdout.on('data', (data: Buffer) => {

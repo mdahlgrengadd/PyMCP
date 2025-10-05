@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PyMCP - Python MCP Client</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .container {
+            background: white;
+            border-radius: 12px;
+            padding: 40px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            text-align: center;
+            max-width: 600px;
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 2.5em;
+        }
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 1.2em;
+        }
+        .status {
+            background: #f0f8ff;
+            border: 1px solid #b3d9ff;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        .status h3 {
+            color: #0066cc;
+            margin: 0 0 10px 0;
+        }
+        .status p {
+            color: #666;
+            margin: 5px 0;
+        }
+        .features {
+            text-align: left;
+            margin: 30px 0;
+        }
+        .features h3 {
+            color: #333;
+            margin-bottom: 15px;
+        }
+        .features ul {
+            color: #666;
+            line-height: 1.6;
+        }
+        .features li {
+            margin: 8px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🐍 PyMCP</h1>
+        <p class="subtitle">Python MCP Client for Module Federation</p>
+        
+        <div class="status">
+            <h3>✅ Module Federation Ready</h3>
+            <p>This shared library is now available for consumption by other applications.</p>
+            <p><strong>Remote Entry:</strong> <code>shared_pymcp@http://localhost:3005/remoteEntry.js</code></p>
+        </div>
+        
+        <div class="features">
+            <h3>🚀 Available Exports</h3>
+            <ul>
+                <li><strong>PyodideMcpClient</strong> - Core MCP client for Python integration</li>
+                <li><strong>WebWorkerTransport</strong> - Web Worker based transport</li>
+                <li><strong>ServiceWorkerHTTPTransport</strong> - Service Worker HTTP transport</li>
+                <li><strong>generateClientFromServer</strong> - Runtime class generator</li>
+                <li><strong>McpTools</strong> - Generated TypeScript types</li>
+            </ul>
+        </div>
+        
+        <div class="status">
+            <h3>📦 Usage in Host Applications</h3>
+            <p>Import PyMCP components in your host application:</p>
+            <pre style="background: #f5f5f5; padding: 15px; border-radius: 5px; text-align: left; overflow-x: auto;">
+import { PyodideMcpClient, WebWorkerTransport } from 'shared_pymcp/mcp-client';
+import { generateClientFromServer } from 'shared_pymcp/runtime-generator';
+            </pre>
+        </div>
+    </div>
+</body>
+</html>
