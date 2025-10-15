@@ -73,10 +73,21 @@ export class PyodideMcpClient {
     await this.transport.sendNotification(notif);
   }
 
-  async listTools() {
+
+    async listTools() {
     if (this.tools.length) return this.tools;
     const result = await this.call("tools/list");
-    this.tools = result.tools;
+    this.tools = Array.isArray(result?.tools) ? result.tools : (Array.isArray(result) ? result : []);
+    return this.tools;
+  }
+
+  resetToolCache(): void {
+    this.tools = [];
+  }
+
+  async refreshTools(): Promise<ToolDesc[]> {
+    const result = await this.call("tools/list");
+    this.tools = Array.isArray(result?.tools) ? result.tools : (Array.isArray(result) ? result : []);
     return this.tools;
   }
 
