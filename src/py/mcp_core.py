@@ -155,9 +155,33 @@ class McpMeta(type):
 
 
 class McpServer(metaclass=McpMeta):
+    _instance: 'McpServer | None' = None
+    
     def __init__(self):
         self._initialized = False
         self._protocol_version = "2025-06-18"
+
+    @classmethod
+    def boot(cls, reuse_initialized: bool = False) -> 'McpServer':
+        """Create or refresh the MCP service inside Pyodide.
+        
+        Args:
+            reuse_initialized: If True, preserve handshake state across hot reloads
+            
+        Returns:
+            The server instance
+        """
+        instance = cls()
+        if reuse_initialized:
+            instance._initialized = True
+        cls._instance = instance
+        attach_pyodide_worker(instance)
+        return instance
+    
+    @classmethod
+    def get_instance(cls) -> 'McpServer | None':
+        """Get the current server instance."""
+        return cls._instance
 
     def _server_info(self) -> Json:
         return {
