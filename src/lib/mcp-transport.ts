@@ -133,10 +133,9 @@ export class ServiceWorkerHTTPTransport implements McpTransport {
     // Check if SW is already controlling before registration
     const hadController = !!navigator.serviceWorker.controller;
 
-    // Register service worker (module type for static ESM imports)
+    // Register service worker (classic type for better compatibility)
     this.registration = await navigator.serviceWorker.register(swPath, {
-      scope: '/',
-      type: 'module'
+      scope: '/'
     });
 
     console.log('Service Worker registered');
