@@ -15,6 +15,18 @@ module.exports = {
     headers: {
       'Access-Control-Allow-Origin': '*',
     },
+    client: {
+      overlay: {
+        runtimeErrors: (error) => {
+          // Suppress ResizeObserver loop errors in development
+          if (error?.message === "ResizeObserver loop completed with undelivered notifications.") {
+            console.warn('ResizeObserver loop completed with undelivered notifications. (This is harmless and can be ignored)');
+            return false; // Don't show overlay for this error
+          }
+          return true; // Show overlay for other errors
+        },
+      },
+    },
   },
 
   output: {
