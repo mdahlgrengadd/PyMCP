@@ -2,6 +2,9 @@ from typing import Annotated
 from pydantic import BaseModel, Field
 from mcp_core import McpServer, attach_pyodide_worker
 
+# Import Desktop API for MCP tool usage
+import prometheos.api
+
 
 class Item(BaseModel):
     id: int
@@ -30,6 +33,54 @@ class MyService(McpServer):
     async def get_item(self, item_id: Annotated[int, Field(ge=1)]) -> Item:
         '''Fetch an item by id.'''
         return Item(id=item_id, name=f"Item {item_id}")
+
+    # ============ DESKTOP API TOOLS ============
+
+    async def desktop_notify(self, message: str, type: str = "info") -> dict:
+        '''Send a desktop notification using Desktop API.'''
+        success = await prometheos.api.notify(message, type)
+        return {"success": success, "message": message, "type": type}
+
+    async def open_app(self, app_id: str) -> dict:
+        '''Open a desktop application.'''
+        success = await prometheos.api.open(app_id)
+        return {"success": success, "app_id": app_id}
+
+    async def kill_app(self, app_id: str) -> dict:
+        '''Close a desktop application.'''
+        success = await prometheos.api.kill(app_id)
+        return {"success": success, "app_id": app_id}
+
+    async def list_desktop_components(self) -> dict:
+        '''List all available desktop components.'''
+        initialized = await prometheos.api.api.initialize()
+        if not initialized:
+            return {"success": False, "error": "Desktop API not initialized"}
+
+        components = await prometheos.api.api.list_components()
+        return {"success": True, "components": components}
+
+    async def alert(self, message: str) -> dict:
+        '''Show an alert notification using Desktop API.'''
+        success = await prometheos.api.notify(message, "info")
+        return {"success": success, "message": message}
+
+    # ============ SHORTER NAMED TOOLS (using prometheos.api module) ============
+
+    async def open(self, app_id: str) -> dict:
+        '''Open a desktop application (short name).'''
+        success = await prometheos.api.open(app_id)
+        return {"success": success, "app_id": app_id}
+
+    async def kill(self, app_id: str) -> dict:
+        '''Close a desktop application (short name).'''
+        success = await prometheos.api.kill(app_id)
+        return {"success": success, "app_id": app_id}
+
+    async def notify(self, message: str, type: str = "info") -> dict:
+        '''Send a desktop notification (short name).'''
+        success = await prometheos.api.notify(message, type)
+        return {"success": success, "message": message, "type": type}
 
     # ============ RESOURCES (resource_* methods) ============
 

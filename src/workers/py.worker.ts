@@ -4,6 +4,7 @@
 import mcpCoreSrc from '../py/mcp_core.py?raw';
 import myServerSrc from '../py/my_server.py?raw';
 import mcpIntrospectSrc from '../py/mcp_introspect.py?raw';
+import { getEmbeddedPrometheosPackage } from './prometheos-package';
 
 declare const self: DedicatedWorkerGlobalScope;
 
@@ -30,6 +31,21 @@ self.onmessage = async (e: MessageEvent) => {
     } catch {
       await pyodide.runPythonAsync('import micropip; await micropip.install("pydantic==2.*")');
     }
+
+    // Check for Desktop API bridge availability
+    const bridge = (globalThis as any).desktop_api_comlink;
+    const mcpHandler = (globalThis as any).desktop_mcp_comlink;
+
+    if (bridge) {
+      console.log('✓ Desktop API bridge available to PyMCP worker');
+    } else {
+      console.warn('⚠ Desktop API bridge not found - prometheos.api will not work');
+    }
+
+    // Load PrometheOS package code
+    const prometheosPackageCode = getEmbeddedPrometheosPackage();
+    await pyodide.runPythonAsync(prometheosPackageCode);
+    console.log('✓ PrometheOS package loaded in PyMCP worker');
 
     // Write our Python modules and boot
     pyodide.FS.writeFile('mcp_core.py', mcpCoreSrc);

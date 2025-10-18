@@ -59,13 +59,41 @@ export class PyodideMcpClient {
   async call(method: string, params?: Json): Promise<any> {
     const id = ++this.nextId;
     const req: JsonRpcRequest = { jsonrpc: "2.0", id, method, params };
-    const res = await this.transport.sendRequest(req);
-
-    if (res.error) {
-      throw new Error(res.error.message);
+    
+    try {
+      const res = await this.transport.sendRequest(req);
+      
+      if (res.error) {
+        // Handle "Server not initialized" errors by retrying
+        if (res.error.message && res.error.message.includes("Server not initialized")) {
+          console.log("MCP server not initialized, retrying request...");
+          // Wait longer for service worker to fully reinitialize
+          await new Promise(resolve => setTimeout(resolve, 2000));
+          // Retry the request
+          const retryRes = await this.transport.sendRequest(req);
+          if (retryRes.error) {
+            // If still failing, try one more time with longer delay
+            if (retryRes.error.message && retryRes.error.message.includes("Server not initialized")) {
+              console.log("MCP server still not initialized, final retry...");
+              await new Promise(resolve => setTimeout(resolve, 3000));
+              const finalRetryRes = await this.transport.sendRequest(req);
+              if (finalRetryRes.error) {
+                throw new Error(finalRetryRes.error.message);
+              }
+              return finalRetryRes.result;
+            }
+            throw new Error(retryRes.error.message);
+          }
+          return retryRes.result;
+        }
+        throw new Error(res.error.message);
+      }
+      
+      return res.result;
+    } catch (error) {
+      console.error(`MCP call error for ${method}:`, error);
+      throw error;
     }
-
-    return res.result;
   }
 
   private async notify(method: string, params?: Json): Promise<void> {
