@@ -128,34 +128,59 @@ export class ServiceWorkerHTTPTransport implements McpTransport {
       throw new Error('Service Worker not supported in this browser');
     }
 
-    console.log('Registering Service Worker:', swPath);
-
-    // Check if SW is already controlling before registration
+    // Check if SW is already controlling (registered by desktop-host)
     const hadController = !!navigator.serviceWorker.controller;
+    
+    if (hadController) {
+      console.log('✅ Service Worker already controlling page (registered by desktop-host)');
+      
+      // Wait for service worker to be ready
+      await navigator.serviceWorker.ready;
+      console.log('Service Worker ready');
+      
+      // Check if Pyodide is already initialized by testing a simple request
+      try {
+        const testReq: JsonRpcRequest = {
+          jsonrpc: '2.0',
+          id: 'test-init',
+          method: 'sw/status',
+          params: {}
+        };
+        
+        const testRes = await this.sendRequest(testReq);
+        if (!testRes.error) {
+          console.log('✅ Pyodide already initialized in Service Worker (by desktop-host)');
+          return; // Skip initialization, already done
+        }
+      } catch (err) {
+        console.log('Service Worker not yet initialized, proceeding with initialization...');
+      }
+    } else {
+      console.log('Registering Service Worker:', swPath);
 
-    // Register service worker (classic type for better compatibility)
-    this.registration = await navigator.serviceWorker.register(swPath, {
-      scope: '/'
-    });
+      // Register service worker (classic type for better compatibility)
+      this.registration = await navigator.serviceWorker.register(swPath, {
+        scope: '/'
+      });
 
-    console.log('Service Worker registered');
+      console.log('Service Worker registered');
 
-    // If this is the first registration (no controller), we need to reload
-    // because Service Workers can't intercept the page that registered them
-    if (!hadController && !navigator.serviceWorker.controller) {
-      throw new Error(
-        '⚠️ Service Worker registered for the first time.\n\n' +
-        'Please reload the page (F5 or Ctrl+R) for the Service Worker to take control.\n\n' +
-        'This is only needed once. Subsequent loads will work without reloading.'
-      );
+      // If this is the first registration (no controller), we need to reload
+      // because Service Workers can't intercept the page that registered them
+      if (!navigator.serviceWorker.controller) {
+        throw new Error(
+          '⚠️ Service Worker registered for the first time.\n\n' +
+          'Please reload the page (F5 or Ctrl+R) for the Service Worker to take control.\n\n' +
+          'This is only needed once. Subsequent loads will work without reloading.'
+        );
+      }
+
+      console.log('✅ Service Worker controlling page');
+
+      // Wait for service worker to be ready
+      await navigator.serviceWorker.ready;
+      console.log('Service Worker ready');
     }
-
-    console.log('✅ Service Worker controlling page');
-
-    // Wait for service worker to be ready
-    await navigator.serviceWorker.ready;
-
-    console.log('Service Worker ready');
 
     // Give SW a moment to fully activate
     await new Promise(resolve => setTimeout(resolve, 200));
