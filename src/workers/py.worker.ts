@@ -12,7 +12,7 @@ self.onmessage = async (e: MessageEvent) => {
   const msg = e.data || {};
   if (msg.type !== 'init') return;
 
-  let indexURL: string = msg.indexURL || 'https://cdn.jsdelivr.net/pyodide/v0.26.4/full/';
+  let indexURL: string = msg.indexURL || 'https://cdn.jsdelivr.net/pyodide/v0.28.3/full/';
   if (!indexURL.endsWith('/')) indexURL += '/';
 
   // Load pyodide.js into this worker via fetch and eval (for ES module workers)
