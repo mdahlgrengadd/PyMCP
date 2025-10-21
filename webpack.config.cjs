@@ -4,7 +4,7 @@ const path = require('path');
 
 // Configuration constants - modify these for different environments
 const PYMCP_URL = process.env.PYMCP_URL || 'http://localhost:3005';
-const DEV_SERVER_PORT = process.env.DEV_SERVER_PORT || 3005;
+const DEV_SERVER_PORT = 3005;
 
 module.exports = {
   mode: 'development',
