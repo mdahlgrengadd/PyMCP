@@ -29,8 +29,11 @@ self.addEventListener("activate", (event) => {
 self.addEventListener("fetch", (event) => {
   const url = new URL(event.request.url);
 
+  // Check if pathname is /mcp or ends with /mcp (handles both /mcp and /PrometheOS-src/mcp)
+  const isMcpRequest = url.pathname === "/mcp" || url.pathname.endsWith("/mcp");
+
   // Handle CORS preflight (OPTIONS) for /mcp
-  if (url.pathname === "/mcp" && event.request.method === "OPTIONS") {
+  if (isMcpRequest && event.request.method === "OPTIONS") {
     event.respondWith(
       new Response(null, {
         status: 204,
@@ -46,7 +49,7 @@ self.addEventListener("fetch", (event) => {
   }
 
   // Only intercept POST requests to /mcp
-  if (url.pathname === "/mcp" && event.request.method === "POST") {
+  if (isMcpRequest && event.request.method === "POST") {
     console.log("SW: Intercepting /mcp request");
     event.respondWith(handleMcpRequest(event.request));
     return;
