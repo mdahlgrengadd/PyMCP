@@ -2,12 +2,20 @@ const { ModuleFederationPlugin } = require('@module-federation/enhanced/rspack')
 const rspack = require('@rspack/core');
 const path = require('path');
 
+// Determine if we're building for production (GitHub Pages)
+const isProduction = process.env.NODE_ENV === 'production' || process.env.BASE_URL;
+const BASE_URL = process.env.BASE_URL || '/PrometheOS-src/';
+
 // Configuration constants - modify these for different environments
-const PYMCP_URL = process.env.PYMCP_URL || 'http://localhost:3005';
+const PYMCP_URL = process.env.PYMCP_URL || (isProduction ? `${BASE_URL}packages/PyMCP/` : 'http://localhost:3005/');
 const DEV_SERVER_PORT = 3005;
 
+// Ensure URL ends with /
+const normalizedPyMcpUrl = PYMCP_URL.endsWith('/') ? PYMCP_URL : `${PYMCP_URL}/`;
+
 module.exports = {
-  mode: 'development',
+  mode: isProduction ? 'production' : 'development',
+  target: 'web', // Explicitly set target to web to fix compiler.platform undefined error
   entry: './src/index.ts',
 
   devServer: {
@@ -18,7 +26,9 @@ module.exports = {
   },
 
   output: {
-    publicPath: `${PYMCP_URL}/`,
+    publicPath: normalizedPyMcpUrl,
+    chunkLoading: 'jsonp',
+    chunkFormat: 'array-push',
   },
 
   resolve: {
