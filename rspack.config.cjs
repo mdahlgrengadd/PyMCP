@@ -1,5 +1,5 @@
-const { ModuleFederationPlugin } = require('@module-federation/enhanced');
-const HtmlWebpackPlugin = require('html-webpack-plugin');
+const { ModuleFederationPlugin } = require('@module-federation/enhanced/rspack');
+const rspack = require('@rspack/core');
 const path = require('path');
 
 // Configuration constants - modify these for different environments
@@ -9,7 +9,7 @@ const DEV_SERVER_PORT = 3005;
 module.exports = {
   mode: 'development',
   entry: './src/index.ts',
-  
+
   devServer: {
     port: DEV_SERVER_PORT,
     headers: {
@@ -33,19 +33,28 @@ module.exports = {
       "os": false,
     },
   },
-  
+
   module: {
     rules: [
       {
-        test: /\.tsx?$/,
-        use: {
-          loader: 'ts-loader',
-          options: {
-            transpileOnly: true,
-            configFile: 'tsconfig.json',
+        test: /\.[jt]sx?$/,
+        exclude: /node_modules/,
+        loader: 'builtin:swc-loader',
+        options: {
+          jsc: {
+            parser: {
+              syntax: 'typescript',
+              tsx: true,
+              decorators: false,
+              dynamicImport: true,
+            },
+            transform: {
+              react: {
+                runtime: 'automatic',
+              },
+            },
           },
         },
-        exclude: /node_modules/,
       },
       {
         test: /\.css$/,
@@ -60,7 +69,7 @@ module.exports = {
       },
     ],
   },
-  
+
   plugins: [
     new ModuleFederationPlugin({
       name: 'shared_pymcp',
@@ -98,8 +107,8 @@ module.exports = {
       },
       dts: false,
     }),
-    
-    new HtmlWebpackPlugin({
+
+    new rspack.HtmlRspackPlugin({
       template: './public/index.html',
     }),
   ],
