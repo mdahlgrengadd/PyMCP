@@ -113,11 +113,44 @@ export class WebWorkerTransport implements McpTransport {
 }
 
 /**
+ * Gets the BASE_URL from the current browser location.
+ * For GitHub Pages: /PrometheOS-src/ -> /PrometheOS-src/mcp
+ * For localhost: / -> /mcp
+ */
+function getBaseUrl(): string {
+  if (typeof window === 'undefined') {
+    return '/';
+  }
+
+  const pathname = window.location.pathname;
+  
+  // If we're on localhost or the pathname is just '/', use root
+  if (window.location.hostname === 'localhost' || pathname === '/') {
+    return '/';
+  }
+
+  // Extract the base path from the pathname
+  // Examples: /PrometheOS-src/ -> /PrometheOS-src/
+  // /PrometheOS-src/some/path -> /PrometheOS-src/
+  const pathSegments = pathname.split('/').filter(Boolean);
+  
+  if (pathSegments.length === 0) {
+    return '/';
+  }
+
+  // First segment is typically the repo name on GitHub Pages
+  const basePath = `/${pathSegments[0]}/`;
+  return basePath;
+}
+
+/**
  * Service Worker HTTP transport - communicates via HTTP requests
  * This provides an HTTP-like interface while keeping everything client-side
  */
 export class ServiceWorkerHTTPTransport implements McpTransport {
-  private baseUrl = '/mcp';
+  private get baseUrl(): string {
+    return `${getBaseUrl()}mcp`;
+  }
   private protocolVersion = '2025-06-18';
 
   async connect(config: { indexURL: string; swPath?: string }): Promise<void> {
