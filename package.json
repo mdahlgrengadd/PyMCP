@@ -6,8 +6,8 @@
   "main": "dist/index.js",
   "scripts": {
     "start": "rspack serve --config rspack.config.cjs",
-    "build": "rspack build --mode production --config rspack.config.cjs",
-    "dev": "rspack serve --config rspack.config.cjs",
+    "build": "rspack build --mode production --config rspack.config.cjs && node scripts/copy-worker.cjs",
+    "dev": "node scripts/copy-worker.cjs && rspack serve --config rspack.config.cjs",
     "type-check": "tsc --noEmit",
     "typegen": "node scripts/gen-types.mjs",
     "proxy": "node proxy-server.mjs",

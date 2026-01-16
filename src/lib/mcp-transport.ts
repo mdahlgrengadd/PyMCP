@@ -113,6 +113,20 @@ export class WebWorkerTransport implements McpTransport {
 }
 
 /**
+ * Factory function to create the Pyodide worker
+ * The worker is compiled as part of desktop-host and served from the host's origin
+ * This avoids cross-origin issues and keeps all assets from a single origin
+ */
+export function createPyWorker(): Worker {
+  // Load from host's public path (same origin)
+  const hostPublicPath = (globalThis as any).__webpack_public_path__ || window.location.origin + '/';
+  const workerUrl = new URL('workers/py.worker.js', hostPublicPath).href;
+
+  console.log('[createPyWorker] Loading worker from:', workerUrl);
+  return new Worker(workerUrl, { type: 'module' });
+}
+
+/**
  * Gets the BASE_URL from the current browser location.
  * For GitHub Pages: /PrometheOS-src/ -> /PrometheOS-src/mcp
  * For localhost: / -> /mcp
@@ -158,49 +172,10 @@ export class ServiceWorkerHTTPTransport implements McpTransport {
       throw new Error('Service Worker not supported in this browser');
     }
 
-    // Wait for desktop-host to register and activate the service worker
-    console.log('Waiting for Service Worker (registered by desktop-host)...');
+    // Wait for Service Worker to be ready (registered and activated by desktop-host)
+    console.log('[ServiceWorkerHTTPTransport] Waiting for Service Worker...');
     await navigator.serviceWorker.ready;
-    console.log('Service Worker ready');
-
-    // Check if Pyodide is already initialized by testing a simple request
-    try {
-      const testReq: JsonRpcRequest = {
-        jsonrpc: '2.0',
-        id: 'test-init',
-        method: 'sw/status',
-        params: {}
-      };
-      
-      const testRes = await this.sendRequest(testReq);
-      if (!testRes.error) {
-        console.log('✅ Pyodide already initialized in Service Worker (by desktop-host)');
-        return; // Skip initialization, already done
-      }
-    } catch (err) {
-      console.log('Service Worker not yet initialized, proceeding with initialization...');
-    }
-
-    // Give SW a moment to fully activate
-    await new Promise(resolve => setTimeout(resolve, 200));
-
-    // Initialize Pyodide inside the Service Worker
-    console.log('Initializing Pyodide in Service Worker...');
-
-    const initReq: JsonRpcRequest = {
-      jsonrpc: '2.0',
-      id: 'init',
-      method: 'sw/init',
-      params: { indexURL: config.indexURL }
-    };
-
-    const res = await this.sendRequest(initReq);
-
-    if (res.error) {
-      throw new Error(`Service worker init failed: ${res.error.message}`);
-    }
-
-    console.log('Pyodide initialized in Service Worker');
+    console.log('[ServiceWorkerHTTPTransport] Service Worker ready - Pyodide initialization handled by desktop-host');
   }
 
   async sendRequest(req: JsonRpcRequest): Promise<JsonRpcResponse> {

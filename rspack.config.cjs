@@ -16,10 +16,16 @@ const normalizedPyMcpUrl = PYMCP_URL.endsWith('/') ? PYMCP_URL : `${PYMCP_URL}/`
 module.exports = {
   mode: isProduction ? 'production' : 'development',
   target: 'web', // Explicitly set target to web to fix compiler.platform undefined error
-  entry: './src/index.ts',
+  entry: {
+    index: './src/index.ts',
+    'workers/py.worker': './src/workers/py.worker.ts',
+  },
 
   devServer: {
     port: DEV_SERVER_PORT,
+    static: {
+      directory: path.join(__dirname, 'src'),
+    },
     headers: {
       'Access-Control-Allow-Origin': '*',
     },
@@ -88,6 +94,7 @@ module.exports = {
         './mcp-client': './src/lib/mcp-pyodide-client',
         './mcp-transport': './src/lib/mcp-transport',
         './runtime-generator': './src/lib/runtime-class-generator',
+        './py-worker': './src/workers/py.worker.ts',
       },
       shared: {
         react: {
